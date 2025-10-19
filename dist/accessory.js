@@ -70,21 +70,40 @@ class MELCloudAccessory {
     async setActive(value) {
         const power = value === this.platform.Characteristic.Active.ACTIVE;
         const settings = this.getSettings();
-        const currentFanSpeed = parseInt(settings.SetFanSpeed);
+        // Convert fan speed to number for logging (handle both text and numeric formats)
+        const reverseSpeedMap = {
+            'Auto': 0, 'One': 1, 'Two': 2, 'Three': 3, 'Four': 4, 'Five': 5,
+            '0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5,
+        };
+        const currentFanSpeed = reverseSpeedMap[settings.SetFanSpeed] ?? 0;
         this.platform.log.info(`[${this.device.givenDisplayName}] Set Active:`, power, `(current fan speed: ${currentFanSpeed})`);
+        // Don't send command if the state is already correct
+        if ((power && settings.Power === 'True') || (!power && settings.Power === 'False')) {
+            this.platform.log.info(`[${this.device.givenDisplayName}] Active state already matches, skipping command`);
+            return;
+        }
         try {
+            // Convert numeric fan speed back to text format for API
+            // API returns numbers but expects text input
+            const speedToTextMap = {
+                '0': 'Auto', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five',
+            };
+            const fanSpeedForAPI = speedToTextMap[settings.SetFanSpeed] || settings.SetFanSpeed;
+            // Send current state for all parameters except power (only change power)
+            // This prevents the API from changing other settings when toggling power
             await this.platform.getAPI().controlDevice(this.device.id, {
                 power,
-                operationMode: null,
-                setFanSpeed: null,
-                vaneHorizontalDirection: null,
-                vaneVerticalDirection: null,
-                setTemperature: null,
+                operationMode: settings.OperationMode,
+                setFanSpeed: fanSpeedForAPI,
+                vaneHorizontalDirection: settings.VaneHorizontalDirection,
+                vaneVerticalDirection: settings.VaneVerticalDirection,
+                setTemperature: parseFloat(settings.SetTemperature),
                 temperatureIncrementOverride: null,
                 inStandbyMode: null,
             });
-            // Refresh device state after 2 seconds
-            setTimeout(() => this.platform.refreshDevice(this.device.id), 2000);
+            // Refresh device state after command
+            // Use shorter delay (250ms) to update state quickly and prevent HomeKit from using stale cached values
+            setTimeout(() => this.platform.refreshDevice(this.device.id), 250);
         }
         catch (error) {
             this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set power:`, error);
@@ -137,6 +156,12 @@ class MELCloudAccessory {
                 break;
         }
         this.platform.log.info(`[${this.device.givenDisplayName}] Set Target State:`, mode);
+        // Don't send command if the mode is already correct
+        const settings = this.getSettings();
+        if (settings.OperationMode === mode) {
+            this.platform.log.info(`[${this.device.givenDisplayName}] Operation mode already matches, skipping command`);
+            return;
+        }
         try {
             await this.platform.getAPI().controlDevice(this.device.id, {
                 power: null,
@@ -148,8 +173,8 @@ class MELCloudAccessory {
                 temperatureIncrementOverride: null,
                 inStandbyMode: null,
             });
-            // Refresh device state after 2 seconds
-            setTimeout(() => this.platform.refreshDevice(this.device.id), 2000);
+            // Refresh device state after command
+            setTimeout(() => this.platform.refreshDevice(this.device.id), 1000);
         }
         catch (error) {
             this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set mode:`, error);
@@ -180,6 +205,13 @@ class MELCloudAccessory {
         await this.setTemperature(value);
     }
     async setTemperature(temp) {
+        // Don't send command if the temperature is already correct
+        const settings = this.getSettings();
+        const currentTemp = parseFloat(settings.SetTemperature);
+        if (Math.abs(currentTemp - temp) < 0.1) {
+            this.platform.log.info(`[${this.device.givenDisplayName}] Temperature already matches, skipping command`);
+            return;
+        }
         try {
             await this.platform.getAPI().controlDevice(this.device.id, {
                 power: null,
@@ -191,8 +223,8 @@ class MELCloudAccessory {
                 temperatureIncrementOverride: null,
                 inStandbyMode: null,
             });
-            // Refresh device state after 2 seconds
-            setTimeout(() => this.platform.refreshDevice(this.device.id), 2000);
+            // Refresh device state after command
+            setTimeout(() => this.platform.refreshDevice(this.device.id), 1000);
         }
         catch (error) {
             this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set temperature:`, error);
@@ -203,7 +235,8 @@ class MELCloudAccessory {
     async getRotationSpeed() {
         const settings = this.getSettings();
         const fanSpeedText = settings.SetFanSpeed;
-        // Convert API text values to numeric speed
+        // Convert API values to numeric speed
+        // API returns numeric strings like "0", "1", "2", etc.
         const reverseSpeedMap = {
             'Auto': 0,
             'One': 1,
@@ -211,8 +244,16 @@ class MELCloudAccessory {
             'Three': 3,
             'Four': 4,
             'Five': 5,
+            // Also handle numeric format from API
+            '0': 0,
+            '1': 1,
+            '2': 2,
+            '3': 3,
+            '4': 4,
+            '5': 5,
         };
         const speed = reverseSpeedMap[fanSpeedText] ?? 0;
+        this.platform.log.debug(`[${this.device.givenDisplayName}] Get Rotation Speed: ${speed} (from: ${fanSpeedText})`);
         return speed;
     }
     async setRotationSpeed(value) {
@@ -227,20 +268,35 @@ class MELCloudAccessory {
             5: 'Five',
         };
         const fanSpeedText = speedMap[speed] || 'Auto';
-        this.platform.log.info(`[${this.device.givenDisplayName}] Set Fan Speed:`, speed, `(${fanSpeedText})`);
+        // Don't send command if the fan speed is already correct
+        const settings = this.getSettings();
+        this.platform.log.info(`[${this.device.givenDisplayName}] Set Fan Speed:`, speed, `(${fanSpeedText}) - Current: ${settings.SetFanSpeed}, Power: ${settings.Power}`);
+        // Don't change fan speed when device is off (AC resets to Auto when powered off)
+        if (settings.Power === 'False') {
+            this.platform.log.info(`[${this.device.givenDisplayName}] Device is off, ignoring fan speed change`);
+            return;
+        }
+        // Check if fan speed matches (handle both text format "Five" and numeric format "5")
+        const currentSpeedMatches = settings.SetFanSpeed === fanSpeedText ||
+            settings.SetFanSpeed === speed.toString();
+        if (currentSpeedMatches) {
+            this.platform.log.info(`[${this.device.givenDisplayName}] Fan speed already matches, skipping command`);
+            return;
+        }
         try {
+            // Send current state for all parameters except fan speed (only change fan speed)
             await this.platform.getAPI().controlDevice(this.device.id, {
-                power: null,
-                operationMode: null,
+                power: settings.Power === 'True',
+                operationMode: settings.OperationMode,
                 setFanSpeed: fanSpeedText,
-                vaneHorizontalDirection: null,
-                vaneVerticalDirection: null,
-                setTemperature: null,
+                vaneHorizontalDirection: settings.VaneHorizontalDirection,
+                vaneVerticalDirection: settings.VaneVerticalDirection,
+                setTemperature: parseFloat(settings.SetTemperature),
                 temperatureIncrementOverride: null,
                 inStandbyMode: null,
             });
-            // Refresh device state after 2 seconds
-            setTimeout(() => this.platform.refreshDevice(this.device.id), 2000);
+            // Refresh device state after command
+            setTimeout(() => this.platform.refreshDevice(this.device.id), 1000);
         }
         catch (error) {
             this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set fan speed:`, error);
@@ -256,13 +312,22 @@ class MELCloudAccessory {
         this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, parseFloat(settings.RoomTemperature));
         // Validate cooling threshold temperature
         const setTemp = parseFloat(settings.SetTemperature);
-        const coolingTemp = Math.max(this.device.capabilities.minTempCoolDry, Math.min(this.device.capabilities.maxTempCoolDry, setTemp));
+        const defaultTemp = 20; // Default to 20°C if temperature is invalid
+        // Use default if setTemp is NaN or out of valid range
+        const validSetTemp = isNaN(setTemp) ? defaultTemp : setTemp;
+        const coolingTemp = Math.max(this.device.capabilities.minTempCoolDry, Math.min(this.device.capabilities.maxTempCoolDry, validSetTemp));
         this.service.updateCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature, coolingTemp);
         // Validate heating threshold temperature
-        const heatingTemp = Math.max(this.device.capabilities.minTempHeat, Math.min(this.device.capabilities.maxTempHeat, setTemp));
+        const heatingTemp = Math.max(this.device.capabilities.minTempHeat, Math.min(this.device.capabilities.maxTempHeat, validSetTemp));
         this.service.updateCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature, heatingTemp);
         if (this.device.capabilities.numberOfFanSpeeds > 0) {
-            this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, parseInt(settings.SetFanSpeed));
+            // Convert API values to numeric speed (handle both text and numeric formats)
+            const reverseSpeedMap = {
+                'Auto': 0, 'One': 1, 'Two': 2, 'Three': 3, 'Four': 4, 'Five': 5,
+                '0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5,
+            };
+            const speed = reverseSpeedMap[settings.SetFanSpeed] ?? 0;
+            this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, speed);
         }
     }
     // Public method to update device state from platform refresh

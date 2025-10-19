@@ -149,7 +149,15 @@ npm test
 
 ## Changelog
 
-**v0.2.0** (Current)
+**v0.3.0** (Current)
+- Fixed iOS HomeKit automatically setting fan speed to max when turning AC on
+- Improved handling of MELCloud API's asymmetric fan speed format (numeric responses, text input)
+- Added duplicate command prevention for all setters
+- Faster state refresh after commands (250ms-1s vs 2s)
+- Better temperature validation with sensible defaults
+- Resolved #1
+
+**v0.2.0**
 - Simplified authentication to use browser cookies (more reliable)
 - Added custom UI for easier setup
 - Fixed fan speed display bug
