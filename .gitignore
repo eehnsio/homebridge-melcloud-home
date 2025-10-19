@@ -2,8 +2,6 @@ node_modules/
 *.log
 .DS_Store
 .env
-config.json
-test-config.js
 
 # Don't commit real credentials
 *credentials*
@@ -12,3 +10,13 @@ test-config.js
 # Build artifacts
 *.tgz
 dist/
+
+# Research and development files
+API_RESEARCH.md
+INTEGRATION_GUIDE.md
+CHANGELOG.md
+test-api.js
+test-api-improved.js
+test-config.js
+config/
+config.json
