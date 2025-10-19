@@ -11,6 +11,16 @@ I needed a way to control my Mitsubishi AC units through HomeKit, but the existi
 
 So I built this plugin from scratch with the help of [Claude Code](https://claude.com/claude-code). It's been working well for my setup, but it's still relatively new - expect some rough edges and please report any issues you find!
 
+## Support This Project
+
+If this plugin saves you from manually adjusting your AC units, consider buying me a coffee!
+
+☕ [Buy Me a Coffee](https://buymeacoffee.com/eehnsio)
+
+## Credits
+
+Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridge-melcloud-control) for inspiration on the Homebridge integration patterns, even though the APIs are completely different.
+
 ## What Works
 
 - Power on/off
@@ -150,16 +160,6 @@ npm test
 - Initial release
 - Basic climate control
 - Device discovery
-
-## Support This Project
-
-If this plugin saves you from manually adjusting your AC units, consider buying me a coffee!
-
-☕ [Buy Me a Coffee](https://buymeacoffee.com/eehnsio)
-
-## Credits
-
-Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridge-melcloud-control) for inspiration on the Homebridge integration patterns, even though the APIs are completely different.
 
 ## License
 
