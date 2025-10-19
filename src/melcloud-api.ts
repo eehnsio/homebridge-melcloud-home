@@ -1,9 +1,8 @@
 import https from 'https';
-import { MELCloudOAuth } from './auth';
 
 export interface MELCloudConfig {
-  email: string;
-  password: string;
+  cookieC1: string;
+  cookieC2: string;
   debug?: boolean;
 }
 
@@ -70,7 +69,7 @@ export interface UserContext {
 export interface DeviceCommand {
   power?: boolean | null;
   operationMode?: string | null;
-  setFanSpeed?: number | null;
+  setFanSpeed?: string | null;
   vaneHorizontalDirection?: string | null;
   vaneVerticalDirection?: string | null;
   setTemperature?: number | null;
@@ -80,15 +79,13 @@ export interface DeviceCommand {
 
 export class MELCloudAPI {
   private readonly config: MELCloudConfig;
-  private readonly oauth: MELCloudOAuth;
 
   constructor(config: MELCloudConfig) {
     this.config = config;
-    this.oauth = new MELCloudOAuth({
-      email: config.email,
-      password: config.password,
-      debug: config.debug,
-    });
+
+    if (!config.cookieC1 || !config.cookieC2) {
+      throw new Error('Must provide both cookieC1 and cookieC2');
+    }
   }
 
   private async makeRequest<T>(
@@ -96,8 +93,21 @@ export class MELCloudAPI {
     path: string,
     data: unknown = null,
   ): Promise<T> {
-    // Get fresh access token (will auto-refresh if needed)
-    const accessToken = await this.oauth.getAccessToken();
+    // Use cookies from config - trim any whitespace
+    const c1 = this.config.cookieC1.trim();
+    const c2 = this.config.cookieC2.trim();
+
+    if (this.config.debug) {
+      console.log('[MELCloud] Using cookies from config');
+      console.log('[MELCloud] Cookie C1 length:', c1.length);
+      console.log('[MELCloud] Cookie C2 length:', c2.length);
+    }
+
+    const cookieString = [
+      '__Secure-monitorandcontrol=chunks-2',
+      `__Secure-monitorandcontrolC1=${c1}`,
+      `__Secure-monitorandcontrolC2=${c2}`,
+    ].join('; ');
 
     return new Promise((resolve, reject) => {
       const options: https.RequestOptions = {
@@ -109,8 +119,8 @@ export class MELCloudAPI {
         headers: {
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.9',
-          'Authorization': `Bearer ${accessToken}`,
-          'User-Agent': 'homebridge-melcloud-home/0.1.0',
+          'Cookie': cookieString,
+          'User-Agent': 'homebridge-melcloud-home/0.2.0',
           'DNT': '1',
           'Origin': 'https://melcloudhome.com',
           'Referer': 'https://melcloudhome.com/dashboard',

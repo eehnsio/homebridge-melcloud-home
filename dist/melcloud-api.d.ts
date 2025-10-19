@@ -1,6 +1,6 @@
 export interface MELCloudConfig {
-    email: string;
-    password: string;
+    cookieC1: string;
+    cookieC2: string;
     debug?: boolean;
 }
 export interface DeviceSetting {
@@ -61,7 +61,7 @@ export interface UserContext {
 export interface DeviceCommand {
     power?: boolean | null;
     operationMode?: string | null;
-    setFanSpeed?: number | null;
+    setFanSpeed?: string | null;
     vaneHorizontalDirection?: string | null;
     vaneVerticalDirection?: string | null;
     setTemperature?: number | null;
@@ -70,7 +70,6 @@ export interface DeviceCommand {
 }
 export declare class MELCloudAPI {
     private readonly config;
-    private readonly oauth;
     constructor(config: MELCloudConfig);
     private makeRequest;
     /**

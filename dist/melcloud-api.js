@@ -5,19 +5,27 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MELCloudAPI = void 0;
 const https_1 = __importDefault(require("https"));
-const auth_1 = require("./auth");
 class MELCloudAPI {
     constructor(config) {
         this.config = config;
-        this.oauth = new auth_1.MELCloudOAuth({
-            email: config.email,
-            password: config.password,
-            debug: config.debug,
-        });
+        if (!config.cookieC1 || !config.cookieC2) {
+            throw new Error('Must provide both cookieC1 and cookieC2');
+        }
     }
     async makeRequest(method, path, data = null) {
-        // Get fresh access token (will auto-refresh if needed)
-        const accessToken = await this.oauth.getAccessToken();
+        // Use cookies from config - trim any whitespace
+        const c1 = this.config.cookieC1.trim();
+        const c2 = this.config.cookieC2.trim();
+        if (this.config.debug) {
+            console.log('[MELCloud] Using cookies from config');
+            console.log('[MELCloud] Cookie C1 length:', c1.length);
+            console.log('[MELCloud] Cookie C2 length:', c2.length);
+        }
+        const cookieString = [
+            '__Secure-monitorandcontrol=chunks-2',
+            `__Secure-monitorandcontrolC1=${c1}`,
+            `__Secure-monitorandcontrolC2=${c2}`,
+        ].join('; ');
         return new Promise((resolve, reject) => {
             const options = {
                 hostname: 'melcloudhome.com',
@@ -28,8 +36,8 @@ class MELCloudAPI {
                 headers: {
                     'Accept': '*/*',
                     'Accept-Language': 'en-US,en;q=0.9',
-                    'Authorization': `Bearer ${accessToken}`,
-                    'User-Agent': 'homebridge-melcloud-home/0.1.0',
+                    'Cookie': cookieString,
+                    'User-Agent': 'homebridge-melcloud-home/0.2.0',
                     'DNT': '1',
                     'Origin': 'https://melcloudhome.com',
                     'Referer': 'https://melcloudhome.com/dashboard',

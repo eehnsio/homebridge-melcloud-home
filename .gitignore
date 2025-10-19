@@ -8,3 +8,7 @@ test-config.js
 # Don't commit real credentials
 *credentials*
 *secrets*
+
+# Build artifacts
+*.tgz
+dist/

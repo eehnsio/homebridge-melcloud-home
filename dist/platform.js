@@ -15,15 +15,22 @@ class MELCloudHomePlatform {
         this.accessoryInstances = new Map();
         this.log.debug('Finished initializing platform:', this.config.name);
         // Validate configuration
-        if (!config.email || !config.password) {
-            this.log.error('Missing required configuration: email and password are required');
-            this.log.error('Please add your MELCloud Home credentials to the config');
+        const hasCookies = config.cookieC1 && config.cookieC2;
+        if (!hasCookies) {
+            this.log.warn('⚠️  No authentication cookies found');
+            this.log.warn('📝 To get started:');
+            this.log.warn('   1. Open Homebridge Config UI');
+            this.log.warn('   2. Find MELCloud Home plugin');
+            this.log.warn('   3. Click the Settings button (gear icon)');
+            this.log.warn('   4. Click "🔐 Login to MELCloud Home"');
+            this.log.warn('   5. Enter your credentials');
+            this.log.warn('   6. Restart Homebridge');
             return;
         }
         // Initialize API client
         this.melcloudAPI = new melcloud_api_1.MELCloudAPI({
-            email: config.email,
-            password: config.password,
+            cookieC1: config.cookieC1,
+            cookieC2: config.cookieC2,
             debug: config.debug || false,
         });
         this.api.on('didFinishLaunching', () => {

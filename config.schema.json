@@ -2,6 +2,7 @@
   "pluginAlias": "MELCloudHome",
   "pluginType": "platform",
   "singular": true,
+  "customUi": true,
   "schema": {
     "type": "object",
     "properties": {
@@ -11,18 +12,17 @@
         "required": true,
         "default": "MELCloud Home"
       },
-      "email": {
-        "title": "Email",
+      "cookieC1": {
+        "title": "Cookie C1 (auto-filled)",
         "type": "string",
-        "required": true,
-        "format": "email",
-        "description": "Your MELCloud Home account email address"
+        "description": "Automatically filled when you click 'Login to MELCloud Home' in the custom settings UI. Leave blank for initial setup.",
+        "placeholder": "Click the Settings button above to authenticate"
       },
-      "password": {
-        "title": "Password",
+      "cookieC2": {
+        "title": "Cookie C2 (auto-filled)",
         "type": "string",
-        "required": true,
-        "description": "Your MELCloud Home account password"
+        "description": "Automatically filled when you click 'Login to MELCloud Home' in the custom settings UI. Leave blank for initial setup.",
+        "placeholder": "Click the Settings button above to authenticate"
       },
       "refreshInterval": {
         "title": "Refresh Interval (seconds)",

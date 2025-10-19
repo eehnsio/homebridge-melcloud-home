@@ -1,99 +1,80 @@
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
+const fs = require('fs');
+const path = require('path');
 
 class PluginUiServer extends HomebridgePluginUiServer {
   constructor() {
     super();
 
-    // Handler to get device information
-    this.onRequest('/devices', this.getDevices.bind(this));
+    // Handler to save cookies manually
+    this.onRequest('/save-cookies', this.saveCookies.bind(this));
 
     // Ready
     this.ready();
   }
 
   /**
-   * Get all devices from the MELCloud Home API
+   * Save cookies manually provided by the user
    */
-  async getDevices() {
+  async saveCookies(payload) {
     try {
-      // Get the plugin config from Homebridge
-      const pluginConfig = await this.getPluginConfig();
+      console.log('[MELCloudHome UI] Manual cookie save request received');
+      const { cookieC1, cookieC2 } = payload;
 
-      if (!pluginConfig || !Array.isArray(pluginConfig) || pluginConfig.length === 0) {
-        throw new Error('Plugin not configured');
+      if (!cookieC1 || !cookieC2) {
+        console.log('[MELCloudHome UI] Missing cookies');
+        return { success: false, error: 'Both cookies are required' };
       }
 
-      const config = pluginConfig[0];
-
-      // Validate credentials
-      if (!config.email || !config.password) {
-        throw new Error('Missing email or password in configuration');
-      }
-
-      // Import the MELCloudAPI
-      // Note: We need to use the built version
-      const { MELCloudAPI } = require('../dist/melcloud-api');
-
-      // Create an API instance
-      const api = new MELCloudAPI({
-        email: config.email,
-        password: config.password,
-        debug: config.debug || false,
+      console.log('[MELCloudHome UI] Cookies received:', {
+        cookieC1Length: cookieC1.length,
+        cookieC2Length: cookieC2.length,
       });
 
-      // Fetch user context
-      const userContext = await api.getUserContext();
+      // Read the current config.json
+      const configPath = path.join(this.homebridgeStoragePath, 'config.json');
+      console.log('[MELCloudHome UI] Reading config from:', configPath);
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
-      // Process the data for the UI
-      const buildings = userContext.buildings.map(building => ({
-        name: building.name,
-        timezone: building.timezone,
-        devices: building.airToAirUnits.map(device => {
-          const settings = this.parseSettings(device.settings);
-          return {
-            id: device.id,
-            name: device.givenDisplayName,
-            icon: device.displayIcon,
-            isConnected: device.isConnected,
-            rssi: device.rssi,
-            power: settings.Power === 'True',
-            operationMode: settings.OperationMode || 'Unknown',
-            roomTemperature: settings.RoomTemperature || 'N/A',
-            setTemperature: settings.SetTemperature || 'N/A',
-            fanSpeed: settings.ActualFanSpeed || 'Unknown',
-            capabilities: device.capabilities,
-          };
-        }),
-      }));
+      // Find the MELCloud Home platform config
+      const platformIndex = config.platforms.findIndex(p => p.platform === 'MELCloudHome');
+      console.log('[MELCloudHome UI] Platform index:', platformIndex);
 
-      // Calculate statistics
-      const allDevices = buildings.flatMap(b => b.devices);
-      const totalDevices = allDevices.length;
-      const connectedDevices = allDevices.filter(d => d.isConnected).length;
+      if (platformIndex >= 0) {
+        // Update existing platform config
+        console.log('[MELCloudHome UI] Updating existing platform config');
+        config.platforms[platformIndex].cookieC1 = cookieC1;
+        config.platforms[platformIndex].cookieC2 = cookieC2;
+      } else {
+        // Create new platform config
+        console.log('[MELCloudHome UI] Creating new platform config');
+        config.platforms.push({
+          platform: 'MELCloudHome',
+          name: 'MELCloud Home',
+          cookieC1: cookieC1,
+          cookieC2: cookieC2,
+          refreshInterval: 60,
+          debug: false,
+        });
+      }
+
+      // Write the updated config back
+      console.log('[MELCloudHome UI] Writing config back to file');
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 4), 'utf8');
+      console.log('[MELCloudHome UI] Config saved successfully');
 
       return {
-        totalDevices,
-        connectedDevices,
-        buildings,
-        config: {
-          refreshInterval: config.refreshInterval || 60,
-          debug: config.debug || false,
-        },
+        success: true,
+        message: 'Cookies saved successfully! Please restart Homebridge.'
       };
     } catch (error) {
-      throw new Error(`Failed to fetch devices: ${error.message}`);
+      console.error('[MELCloudHome UI] Save cookies error:', error);
+      console.error('[MELCloudHome UI] Error stack:', error.stack);
+      return {
+        success: false,
+        error: error.message || 'Failed to save cookies'
+      };
     }
-  }
-
-  /**
-   * Parse device settings array into an object
-   */
-  parseSettings(settings) {
-    const parsed = {};
-    for (const setting of settings) {
-      parsed[setting.name] = setting.value;
-    }
-    return parsed;
   }
 }
 

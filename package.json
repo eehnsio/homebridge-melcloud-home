@@ -18,16 +18,16 @@
     "air-conditioner",
     "heat-pump",
     "hvac",
-    "oauth",
     "smart-home",
     "iot"
   ],
   "engines": {
-    "node": ">=18.0.0",
-    "homebridge": ">=1.6.0"
+    "node": "^18.20.0 || ^20.0.0 || ^22.0.0",
+    "homebridge": "^1.6.0 || ^2.0.0"
   },
   "author": {
-    "name": "Erik Ehnsiö"
+    "name": "Erik Ehnsiö",
+    "email": "e.ehnsio@gmail.com"
   },
   "license": "Apache-2.0",
   "repository": {
@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "homebridge": "^1.6.0",
+    "homebridge": "^2.0.0",
     "typescript": "^5.0.0"
   },
   "files": [

@@ -87,7 +87,10 @@ export class MELCloudAccessory {
 
   async setActive(value: CharacteristicValue) {
     const power = value === this.platform.Characteristic.Active.ACTIVE;
-    this.platform.log.info(`[${this.device.givenDisplayName}] Set Active:`, power);
+    const settings = this.getSettings();
+    const currentFanSpeed = parseInt(settings.SetFanSpeed);
+
+    this.platform.log.info(`[${this.device.givenDisplayName}] Set Active:`, power, `(current fan speed: ${currentFanSpeed})`);
 
     try {
       await this.platform.getAPI().controlDevice(this.device.id, {
@@ -232,17 +235,42 @@ export class MELCloudAccessory {
   // Rotation Speed (Fan Speed)
   async getRotationSpeed(): Promise<CharacteristicValue> {
     const settings = this.getSettings();
-    return parseInt(settings.SetFanSpeed);
+    const fanSpeedText = settings.SetFanSpeed;
+
+    // Convert API text values to numeric speed
+    const reverseSpeedMap: Record<string, number> = {
+      'Auto': 0,
+      'One': 1,
+      'Two': 2,
+      'Three': 3,
+      'Four': 4,
+      'Five': 5,
+    };
+
+    const speed = reverseSpeedMap[fanSpeedText] ?? 0;
+    return speed;
   }
 
   async setRotationSpeed(value: CharacteristicValue) {
-    this.platform.log.info(`[${this.device.givenDisplayName}] Set Fan Speed:`, value);
+    const speed = value as number;
+    // Convert numeric speed to API text values
+    const speedMap: Record<number, string> = {
+      0: 'Auto',
+      1: 'One',
+      2: 'Two',
+      3: 'Three',
+      4: 'Four',
+      5: 'Five',
+    };
+    const fanSpeedText = speedMap[speed] || 'Auto';
+
+    this.platform.log.info(`[${this.device.givenDisplayName}] Set Fan Speed:`, speed, `(${fanSpeedText})`);
 
     try {
       await this.platform.getAPI().controlDevice(this.device.id, {
         power: null,
         operationMode: null,
-        setFanSpeed: value as number,
+        setFanSpeed: fanSpeedText,
         vaneHorizontalDirection: null,
         vaneVerticalDirection: null,
         setTemperature: null,
