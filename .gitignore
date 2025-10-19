@@ -3,6 +3,9 @@ node_modules/
 .DS_Store
 .env
 
+# Claude Code configuration
+.claude/
+
 # Don't commit real credentials
 *credentials*
 *secrets*
