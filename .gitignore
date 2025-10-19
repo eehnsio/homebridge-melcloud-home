@@ -6,10 +6,12 @@ node_modules/
 # Don't commit real credentials
 *credentials*
 *secrets*
+*.key
+*.pem
+.npmrc
 
 # Build artifacts
 *.tgz
-dist/
 
 # Research and development files
 API_RESEARCH.md
