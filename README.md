@@ -9,7 +9,7 @@ Homebridge plugin for Mitsubishi Electric Air Conditioners using the **MELCloud 
 
 I needed a way to control my Mitsubishi AC units through HomeKit, but the existing MELCloud plugins only worked with the old MELCloud platform (app.melcloud.com). My units use the newer MELCloud Home platform (melcloudhome.com), which has a completely different API.
 
-So I built this plugin from scratch. It's been working well for my setup, but it's still relatively new - expect some rough edges and please report any issues you find!
+So I built this plugin from scratch with the help of [Claude Code](https://claude.com/claude-code). It's been working well for my setup, but it's still relatively new - expect some rough edges and please report any issues you find!
 
 ## What Works
 
