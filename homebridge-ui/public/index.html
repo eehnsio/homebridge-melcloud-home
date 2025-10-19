@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MELCloud Home Settings</title>
+    <style>
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .device-details {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid p-4">
+        <div id="app">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Loading MELCloud Home devices...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (async () => {
+            const app = document.getElementById('app');
+
+            try {
+                // Fetch device information from the custom UI server
+                const response = await homebridge.request('/devices');
+                const data = response;
+
+                // Build the UI using Bootstrap 5 classes
+                app.innerHTML = `
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title mb-4">📊 Account Overview</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="stat-card">
+                                        <div class="stat-value">${data.totalDevices}</div>
+                                        <div class="stat-label">Total Devices</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="stat-card">
+                                        <div class="stat-value">${data.connectedDevices}</div>
+                                        <div class="stat-label">Connected</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="stat-card">
+                                        <div class="stat-value">${data.buildings.length}</div>
+                                        <div class="stat-label">Buildings</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title mb-4">🏠 Your Devices</h5>
+                            ${data.buildings.map(building => `
+                                <h6 class="text-muted mt-3 mb-3">${building.name}</h6>
+                                ${building.devices.map(device => `
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <h6 class="card-subtitle mb-0">${device.name}</h6>
+                                                <span class="badge ${device.isConnected ? 'bg-success' : 'bg-danger'}">
+                                                    ${device.isConnected ? '✓ Connected' : '✗ Disconnected'}
+                                                </span>
+                                            </div>
+                                            <div class="device-details">
+                                                <div class="row g-2">
+                                                    <div class="col-6">
+                                                        <strong>Power:</strong> ${device.power ? 'On' : 'Off'}
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <strong>Mode:</strong> ${device.operationMode}
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <strong>Temperature:</strong> ${device.roomTemperature}°C → ${device.setTemperature}°C
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <strong>Fan Speed:</strong> ${device.fanSpeed}
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <strong>RSSI:</strong> ${device.rssi} dBm
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <strong>System:</strong> ${device.capabilities.isMultiSplitSystem ? 'Multi-Split' : 'Single'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">ℹ️ Information</h6>
+                        <p class="mb-2">This plugin uses OAuth 2.0 authentication for secure, persistent access to your MELCloud Home account. Tokens are automatically refreshed - no cookie expiration issues!</p>
+                        <hr>
+                        <p class="mb-1"><strong>Refresh Interval:</strong> ${data.config.refreshInterval} seconds</p>
+                        <p class="mb-0"><strong>Debug Mode:</strong> ${data.config.debug ? 'Enabled' : 'Disabled'}</p>
+                    </div>
+                `;
+            } catch (error) {
+                app.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h6 class="alert-heading">Error Loading Devices</h6>
+                        <p class="mb-0">${error.message}</p>
+                        <hr>
+                        <p class="mb-0">Please check your plugin configuration and ensure your MELCloud Home credentials are correct.</p>
+                    </div>
+                `;
+            }
+        })();
+    </script>
+</body>
+</html>

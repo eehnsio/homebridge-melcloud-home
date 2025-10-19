@@ -1,0 +1,10 @@
+node_modules/
+*.log
+.DS_Store
+.env
+config.json
+test-config.js
+
+# Don't commit real credentials
+*credentials*
+*secrets*

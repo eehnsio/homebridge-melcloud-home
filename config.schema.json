@@ -1,0 +1,42 @@
+{
+  "pluginAlias": "MELCloudHome",
+  "pluginType": "platform",
+  "singular": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "required": true,
+        "default": "MELCloud Home"
+      },
+      "email": {
+        "title": "Email",
+        "type": "string",
+        "required": true,
+        "format": "email",
+        "description": "Your MELCloud Home account email address"
+      },
+      "password": {
+        "title": "Password",
+        "type": "string",
+        "required": true,
+        "description": "Your MELCloud Home account password"
+      },
+      "refreshInterval": {
+        "title": "Refresh Interval (seconds)",
+        "type": "integer",
+        "default": 60,
+        "minimum": 30,
+        "description": "How often to poll for device updates (default: 60 seconds)"
+      },
+      "debug": {
+        "title": "Debug Mode",
+        "type": "boolean",
+        "default": false,
+        "description": "Enable debug logging"
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "homebridge-melcloud-home",
+  "displayName": "Homebridge MELCloud Home",
+  "version": "0.2.0",
+  "description": "Homebridge plugin for Mitsubishi Electric Air Conditioners using the MELCloud Home platform (melcloudhome.com)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "node test-api-improved.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "melcloud",
+    "melcloud-home",
+    "mitsubishi",
+    "air-conditioner",
+    "heat-pump",
+    "hvac",
+    "oauth",
+    "smart-home",
+    "iot"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "homebridge": ">=1.6.0"
+  },
+  "author": {
+    "name": "Erik Ehnsiö"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eehnsio/homebridge-melcloud-home.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eehnsio/homebridge-melcloud-home/issues"
+  },
+  "homepage": "https://github.com/eehnsio/homebridge-melcloud-home#readme",
+  "dependencies": {
+    "@homebridge/plugin-ui-utils": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "homebridge": "^1.6.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist",
+    "config.schema.json",
+    "homebridge-ui"
+  ],
+  "type": "commonjs"
+}
