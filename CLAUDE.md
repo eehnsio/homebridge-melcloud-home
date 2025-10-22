@@ -1,0 +1,1 @@
+- My homebridge is running on another device, so after changes we build and pack the code and then I transfer it to my other device to install manually
