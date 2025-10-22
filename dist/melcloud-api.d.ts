@@ -1,6 +1,5 @@
 export interface MELCloudConfig {
-    cookieC1: string;
-    cookieC2: string;
+    refreshToken: string;
     debug?: boolean;
 }
 export interface DeviceSetting {
@@ -70,8 +69,30 @@ export interface DeviceCommand {
 }
 export declare class MELCloudAPI {
     private readonly config;
+    private sessionValid;
+    private lastAuthError?;
+    private accessToken?;
+    private tokenExpiry?;
+    private currentRefreshToken?;
+    private readonly CLIENT_AUTH;
     constructor(config: MELCloudConfig);
+    /**
+     * Check if access token is expired or about to expire
+     */
+    private isTokenExpired;
+    /**
+     * Refresh the access token using the refresh token
+     */
+    private refreshAccessToken;
+    /**
+     * Ensure we have a valid access token
+     */
+    private ensureAuthenticated;
     private makeRequest;
+    /**
+     * Execute the actual HTTP request
+     */
+    private executeRequest;
     /**
      * Get user context including all devices
      */

@@ -9,27 +9,21 @@
       "name": {
         "title": "Name",
         "type": "string",
-        "required": true,
         "default": "MELCloud Home"
       },
-      "cookieC1": {
-        "title": "Cookie C1 (auto-filled)",
+      "refreshToken": {
+        "title": "Refresh Token",
         "type": "string",
-        "description": "Automatically filled when you click 'Login to MELCloud Home' in the custom settings UI. Leave blank for initial setup.",
-        "placeholder": "Click the Settings button above to authenticate"
-      },
-      "cookieC2": {
-        "title": "Cookie C2 (auto-filled)",
-        "type": "string",
-        "description": "Automatically filled when you click 'Login to MELCloud Home' in the custom settings UI. Leave blank for initial setup.",
+        "description": "OAuth refresh token obtained via the Settings button above. Click Settings → Login via Browser to authenticate.",
         "placeholder": "Click the Settings button above to authenticate"
       },
       "refreshInterval": {
-        "title": "Refresh Interval (seconds)",
+        "title": "Device Status Refresh Interval (seconds)",
         "type": "integer",
-        "default": 60,
+        "default": 90,
         "minimum": 30,
-        "description": "How often to poll for device updates (default: 60 seconds)"
+        "maximum": 600,
+        "description": "How often to poll MELCloud API for device status updates. Recommended: 60-120 seconds. This detects changes made via MELCloud app or physical remote. Note: Changes made via HomeKit update instantly."
       },
       "debug": {
         "title": "Debug Mode",

@@ -6,6 +6,7 @@ export declare class MELCloudAccessory {
     private readonly accessory;
     private service;
     private device;
+    private refreshDebounceTimer?;
     constructor(platform: MELCloudHomePlatform, accessory: PlatformAccessory);
     private getSettings;
     getActive(): Promise<CharacteristicValue>;
@@ -22,6 +23,11 @@ export declare class MELCloudAccessory {
     getRotationSpeed(): Promise<CharacteristicValue>;
     setRotationSpeed(value: CharacteristicValue): Promise<void>;
     private updateCharacteristics;
+    /**
+     * Schedule a debounced refresh to prevent API spam from rapid consecutive commands
+     * This ensures only ONE refresh happens even if user changes multiple settings quickly
+     */
+    private scheduleRefresh;
     updateFromDevice(device: AirToAirUnit): void;
 }
 //# sourceMappingURL=accessory.d.ts.map

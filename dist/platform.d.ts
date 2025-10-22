@@ -11,6 +11,10 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     private melcloudAPI;
     private refreshInterval?;
     constructor(log: Logger, config: PlatformConfig, api: API);
+    /**
+     * Initialize authentication - uses OAuth refresh token from Homebridge UI
+     */
+    private initializeAuthentication;
     configureAccessory(accessory: PlatformAccessory): void;
     discoverDevices(): Promise<void>;
     private startRefreshInterval;

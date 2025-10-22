@@ -19,32 +19,47 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   ) {
     this.log.debug('Finished initializing platform:', this.config.name);
 
-    // Validate configuration
-    const hasCookies = config.cookieC1 && config.cookieC2;
+    this.api.on('didFinishLaunching', async () => {
+      this.log.info('Homebridge finished launching...');
+      await this.initializeAuthentication();
+    });
+  }
 
-    if (!hasCookies) {
-      this.log.warn('⚠️  No authentication cookies found');
-      this.log.warn('📝 To get started:');
-      this.log.warn('   1. Open Homebridge Config UI');
-      this.log.warn('   2. Find MELCloud Home plugin');
-      this.log.warn('   3. Click the Settings button (gear icon)');
-      this.log.warn('   4. Click "🔐 Login to MELCloud Home"');
-      this.log.warn('   5. Enter your credentials');
-      this.log.warn('   6. Restart Homebridge');
-      return;
+  /**
+   * Initialize authentication - uses OAuth refresh token from Homebridge UI
+   */
+  private async initializeAuthentication() {
+    const hasRefreshToken = this.config.refreshToken;
+
+    // Refresh Token Authentication (Only method)
+    if (hasRefreshToken) {
+      this.log.info('🔑 Using refresh token authentication (recommended)');
+
+      try {
+        this.melcloudAPI = new MELCloudAPI({
+          refreshToken: this.config.refreshToken,
+          debug: this.config.debug || false,
+        });
+
+        this.log.info('✅ MELCloud API initialized successfully');
+        await this.discoverDevices();
+        return;
+      } catch (error) {
+        this.log.error('Failed to initialize with refresh token:', error);
+        return;
+      }
     }
 
-    // Initialize API client
-    this.melcloudAPI = new MELCloudAPI({
-      cookieC1: config.cookieC1,
-      cookieC2: config.cookieC2,
-      debug: config.debug || false,
-    });
-
-    this.api.on('didFinishLaunching', () => {
-      log.debug('Executed didFinishLaunching callback');
-      this.discoverDevices();
-    });
+    // No authentication credentials provided
+    this.log.warn('⚠️  No refresh token found');
+    this.log.warn('');
+    this.log.warn('📝 To authenticate:');
+    this.log.warn('   1. Open Homebridge Config UI');
+    this.log.warn('   2. Go to Plugins → MELCloud Home');
+    this.log.warn('   3. Click the Settings button (⚙️)');
+    this.log.warn('   4. Click "LOGIN VIA BROWSER"');
+    this.log.warn('   5. Follow the on-screen instructions');
+    this.log.warn('');
   }
 
   configureAccessory(accessory: PlatformAccessory) {
@@ -58,6 +73,14 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
     try {
       const devices = await this.melcloudAPI.getAllDevices();
       this.log.info(`Found ${devices.length} device(s)`);
+
+      if (devices.length === 0) {
+        this.log.warn('No devices found. Please check:');
+        this.log.warn('  1. Your MELCloud Home account has devices configured');
+        this.log.warn('  2. Your cookies are valid and not expired');
+        this.log.warn('  3. Try logging in again through the plugin settings');
+        return;
+      }
 
       // Register each device
       for (const device of devices) {
@@ -97,7 +120,22 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
       this.startRefreshInterval();
 
     } catch (error) {
-      this.log.error('Failed to discover devices:', error);
+      this.log.error('Failed to discover devices. This usually means:');
+      this.log.error('  1. Your cookies have expired - please login again');
+      this.log.error('  2. MELCloud Home API is temporarily unavailable');
+      this.log.error('  3. Network connectivity issues');
+
+      if (error instanceof Error) {
+        this.log.error('Error details:', error.message);
+        if (error.message.includes('401') || error.message.includes('403')) {
+          this.log.error('Authentication failed - your cookies are invalid or expired');
+          this.log.error('Please login again through the plugin settings');
+        } else if (error.message.includes('timeout')) {
+          this.log.error('Request timed out - check your network connection');
+        }
+      } else {
+        this.log.error('Error details:', String(error));
+      }
     }
   }
 

@@ -16,12 +16,9 @@ node_modules/
 # Build artifacts
 *.tgz
 
-# Research and development files
-API_RESEARCH.md
-INTEGRATION_GUIDE.md
-CHANGELOG.md
-test-api.js
-test-api-improved.js
-test-config.js
+# Archived investigation files
+.archive/
+
+# Config
 config/
 config.json

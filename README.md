@@ -21,7 +21,7 @@ If this plugin saves you from manually adjusting your AC units, consider buying 
 
 Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridge-melcloud-control) for inspiration on the Homebridge integration patterns, even though the APIs are completely different.
 
-## What Works
+## Features
 
 - Power on/off
 - Temperature control (including 0.5° increments)
@@ -29,6 +29,7 @@ Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridg
 - Fan speed control (Auto + 5 speed levels)
 - Real-time temperature monitoring
 - Automatic device discovery
+- **Long-lived sessions** - authenticate once, automatic token refresh keeps you connected
 - Homebridge v1 & v2 compatible
 
 ## Important: MELCloud vs MELCloud Home
@@ -53,91 +54,35 @@ Not sure which one you have? Check which website you log into - if it's melcloud
 npm install -g homebridge-melcloud-home
 ```
 
-## Configuration
+## Setup
 
-### Easy Way: Use the Settings UI
+1. Install the plugin via Homebridge UI
+2. Click the **Settings** button
+3. Click **"Open MELCloud Login"** and login with your credentials
+4. Copy the callback URL from your browser console
+5. Paste it back in the settings and click "Get Token"
+6. Click "Save Token to Config"
+7. Restart Homebridge
 
-After installing the plugin in Homebridge:
+Your devices will appear in HomeKit automatically!
 
-1. Find MELCloud Home under Plugins
-2. Click Settings (gear icon)
-3. Follow the step-by-step guide to get your cookies:
-   - Log into melcloudhome.com
-   - Open Developer Tools (F12)
-   - Copy the two cookie values shown
-   - Paste them into the form
-4. Save and restart Homebridge
+See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed instructions with screenshots.
 
-### Manual Way: Edit config.json
+### Configuration
 
-Add this to your Homebridge config:
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `refreshInterval` | How often to check device status (seconds) | 90 |
+| `debug` | Show detailed logs for troubleshooting | false |
 
-```json
-{
-  "platforms": [
-    {
-      "platform": "MELCloudHome",
-      "name": "MELCloud Home",
-      "cookieC1": "your_cookie_c1_here",
-      "cookieC2": "your_cookie_c2_here",
-      "refreshInterval": 60,
-      "debug": false
-    }
-  ]
-}
-```
+### Troubleshooting
 
-To get the cookies:
-1. Log into melcloudhome.com in your browser
-2. Press F12 to open Developer Tools
-3. Go to Application tab (Chrome) or Storage tab (Firefox)
-4. Look under Cookies → melcloudhome.com
-5. Find `__Secure-monitorandcontrolC1` and copy its value
-6. Find `__Secure-monitorandcontrolC2` and copy its value
-7. Paste these into your config
+Enable debug mode in plugin settings to see detailed logs. Common issues:
 
-The cookies stay valid as long as Homebridge keeps running and talking to the API (every 60 seconds by default).
+- **Devices not appearing**: Verify you can log into melcloudhome.com with the same credentials
+- **Login failed**: Make sure you're using MELCloud Home (not the old MELCloud)
+- Still stuck? [Open an issue](https://github.com/eehnsio/homebridge-melcloud-home/issues)
 
-### Config Options
-
-| Option | Required | Default | Description |
-|--------|----------|---------|-------------|
-| platform | Yes | - | Must be "MELCloudHome" |
-| name | Yes | - | Display name |
-| cookieC1 | Yes | - | First session cookie |
-| cookieC2 | Yes | - | Second session cookie |
-| refreshInterval | No | 60 | Seconds between updates |
-| debug | No | false | Extra logging |
-
-## How It Works
-
-Your AC units show up as Heater Cooler accessories in HomeKit with:
-- Power control
-- Temperature setting
-- Mode selection (Auto/Heat/Cool)
-- Fan speed (0=Auto, 1-5=speed levels)
-- Current temperature display
-
-When you change something in HomeKit, the plugin sends the command immediately and refreshes the state 2 seconds later to confirm. All devices also refresh every 60 seconds (or whatever you set) to catch changes made outside of HomeKit.
-
-## Troubleshooting
-
-### "No devices found" or HTTP 401 errors
-
-Your cookies probably expired. Go back to the Settings UI, get fresh cookies from your browser, paste them in, and restart Homebridge.
-
-The cookies should stay valid indefinitely as long as Homebridge is running and polling, but if you stopped Homebridge for a while or there was a network issue, you might need to refresh them.
-
-### Devices appear but don't respond
-
-- Check that they work on melcloudhome.com
-- Try enabling debug mode in the config
-- Check the Homebridge logs for errors
-- Make sure your cookies are fresh
-
-### Slow updates
-
-State refreshes every 60 seconds by default. You can lower `refreshInterval` to 30 or 15 seconds for faster updates, but this means more API requests.
 
 ## Development
 
@@ -149,25 +94,7 @@ npm test
 
 ## Changelog
 
-**v0.3.0** (Current)
-- Fixed iOS HomeKit automatically setting fan speed to max when turning AC on
-- Improved handling of MELCloud API's asymmetric fan speed format (numeric responses, text input)
-- Added duplicate command prevention for all setters
-- Faster state refresh after commands (250ms-1s vs 2s)
-- Better temperature validation with sensible defaults
-- Resolved #1
-
-**v0.2.0**
-- Simplified authentication to use browser cookies (more reliable)
-- Added custom UI for easier setup
-- Fixed fan speed display bug
-- Added Homebridge v2 support
-- Smaller package size
-
-**v0.1.0**
-- Initial release
-- Basic climate control
-- Device discovery
+See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
 ## License
 
