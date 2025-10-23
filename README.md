@@ -79,6 +79,7 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed instructions with screenshots.
 
 Enable debug mode in plugin settings to see detailed logs. Common issues:
 
+- **Temperature threshold warnings on startup**: This is normal! HomeKit validates initial device values and warns if they're outside acceptable ranges. The plugin automatically corrects these values.
 - **Devices not appearing**: Verify you can log into melcloudhome.com with the same credentials
 - **Login failed**: Make sure you're using MELCloud Home (not the old MELCloud)
 - Still stuck? [Open an issue](https://github.com/eehnsio/homebridge-melcloud-home/issues)
