@@ -72,7 +72,7 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed instructions with screenshots.
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `refreshInterval` | How often to check device status (seconds) | 90 |
+| `refreshInterval` | How often to check device status (seconds). Temperature readings change slowly, so 5 minutes is typically sufficient. Lower values (60-120s) will poll more frequently but may hit MELCloud's server-side cache anyway. | 300 |
 | `debug` | Show detailed logs for troubleshooting | false |
 
 ### Troubleshooting

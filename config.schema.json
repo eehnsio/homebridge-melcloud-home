@@ -5,6 +5,7 @@
   "customUi": true,
   "schema": {
     "type": "object",
+    "required": ["refreshToken"],
     "properties": {
       "name": {
         "title": "Name",
@@ -12,18 +13,21 @@
         "default": "MELCloud Home"
       },
       "refreshToken": {
-        "title": "Refresh Token",
+        "title": "Refresh Token (⚠️ Do Not Clear!)",
         "type": "string",
-        "description": "OAuth refresh token obtained via the Settings button above. Click Settings → Login via Browser to authenticate.",
-        "placeholder": "Click the Settings button above to authenticate"
+        "description": "⚠️ WARNING: Do NOT manually edit or clear this field! Use the Settings button (⚙️) above to re-authenticate if needed. Your token is: (hidden for security)",
+        "placeholder": "Click the Settings button above to authenticate",
+        "x-schema-form": {
+          "type": "password"
+        }
       },
       "refreshInterval": {
         "title": "Device Status Refresh Interval (seconds)",
         "type": "integer",
-        "default": 90,
+        "default": 300,
         "minimum": 30,
-        "maximum": 600,
-        "description": "How often to poll MELCloud API for device status updates. Recommended: 60-120 seconds. This detects changes made via MELCloud app or physical remote. Note: Changes made via HomeKit update instantly."
+        "maximum": 3600,
+        "description": "How often to poll MELCloud API for device status updates. Temperature changes slowly, so 5 minutes (300s) is typically sufficient. Note: Changes made via HomeKit update instantly (within 2 seconds)."
       },
       "debug": {
         "title": "Debug Mode",
