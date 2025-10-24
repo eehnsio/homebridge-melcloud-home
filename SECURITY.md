@@ -52,3 +52,15 @@ This plugin uses OAuth 2.1 with PKCE (Proof Key for Code Exchange) for secure au
 3. Enable two-factor authentication on your MELCloud account if available
 4. Restrict access to your Homebridge instance
 5. Review the plugin's network requests if concerned about data privacy
+
+## Package Integrity
+
+This npm package is published with:
+- **Two-factor authentication** required for all publishes
+- **Provenance attestations** linking packages to source code
+- **Verified publisher** with linked GitHub account
+
+You can verify package integrity using:
+```bash
+npm audit signatures
+```
