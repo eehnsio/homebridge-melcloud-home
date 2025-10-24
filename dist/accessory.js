@@ -96,11 +96,17 @@ class MELCloudAccessory {
                 '0': 'Auto', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five',
             };
             const fanSpeedForAPI = speedToTextMap[settings.SetFanSpeed] || settings.SetFanSpeed;
+            // If powering on and there's a pending mode change, apply it now
+            const operationMode = (power && this.pendingMode) ? this.pendingMode : settings.OperationMode;
+            if (power && this.pendingMode) {
+                this.platform.log.info(`[${this.device.givenDisplayName}] Applying pending mode change: ${this.pendingMode}`);
+                this.pendingMode = undefined; // Clear after use
+            }
             // Send current state for all parameters except power (only change power)
             // This prevents the API from changing other settings when toggling power
             await this.platform.getAPI().controlDevice(this.device.id, {
                 power,
-                operationMode: settings.OperationMode,
+                operationMode,
                 setFanSpeed: fanSpeedForAPI,
                 vaneHorizontalDirection: settings.VaneHorizontalDirection,
                 vaneVerticalDirection: settings.VaneVerticalDirection,
@@ -169,9 +175,10 @@ class MELCloudAccessory {
             return;
         }
         // Don't change mode if device is off - MELCloud API will reject with HTTP 400
-        // HomeKit will send setActive separately to power on
+        // Store the requested mode and apply it when device is powered on
         if (settings.Power === 'False') {
-            this.platform.log.info(`[${this.device.givenDisplayName}] Device is off, skipping mode change (will be set on power on)`);
+            this.platform.log.info(`[${this.device.givenDisplayName}] Device is off, storing mode change for power on`);
+            this.pendingMode = mode;
             return;
         }
         try {
@@ -324,9 +331,6 @@ class MELCloudAccessory {
         // Update all characteristics with current values
         this.service.updateCharacteristic(this.platform.Characteristic.Active, settings.Power === 'True' ? 1 : 0);
         const currentTemp = parseFloat(settings.RoomTemperature);
-        // Get the current cached value from HomeKit to see if it's different
-        const cachedValue = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
-        this.platform.log.debug(`[${this.device.givenDisplayName}] Updating HomeKit CurrentTemperature: ${cachedValue}°C -> ${currentTemp}°C (${currentTemp !== cachedValue ? 'CHANGED' : 'NO CHANGE'})`);
         this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, currentTemp);
         // Validate cooling threshold temperature
         const setTemp = parseFloat(settings.SetTemperature);
@@ -372,9 +376,24 @@ class MELCloudAccessory {
     updateFromDevice(device) {
         const oldSettings = melcloud_api_1.MELCloudAPI.parseSettings(this.device.settings);
         const newSettings = melcloud_api_1.MELCloudAPI.parseSettings(device.settings);
-        const oldTemp = oldSettings.RoomTemperature;
-        const newTemp = newSettings.RoomTemperature;
-        this.platform.log.debug(`[${device.givenDisplayName}] updateFromDevice called - Temp: ${oldTemp}°C -> ${newTemp}°C`);
+        // Check if anything actually changed
+        const tempChanged = oldSettings.RoomTemperature !== newSettings.RoomTemperature;
+        const powerChanged = oldSettings.Power !== newSettings.Power;
+        const modeChanged = oldSettings.OperationMode !== newSettings.OperationMode;
+        // Only log if something changed
+        if (tempChanged || powerChanged || modeChanged) {
+            const changes = [];
+            if (powerChanged) {
+                changes.push(`Power: ${oldSettings.Power} -> ${newSettings.Power}`);
+            }
+            if (tempChanged) {
+                changes.push(`Temp: ${oldSettings.RoomTemperature}°C -> ${newSettings.RoomTemperature}°C`);
+            }
+            if (modeChanged) {
+                changes.push(`Mode: ${oldSettings.OperationMode} -> ${newSettings.OperationMode}`);
+            }
+            this.platform.log.info(`[${device.givenDisplayName}] State changed: ${changes.join(', ')}`);
+        }
         this.device = device;
         this.accessory.context.device = device;
         this.updateCharacteristics();

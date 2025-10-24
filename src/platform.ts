@@ -181,19 +181,15 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
         const accessoryInstance = this.accessoryInstances.get(uuid);
 
         if (accessory && accessoryInstance) {
-          const settings = MELCloudAPI.parseSettings(device.settings);
-          const currentTemp = settings.RoomTemperature;
-          const powerState = settings.Power === 'True' ? 'ON' : 'OFF';
-          this.log.debug(`[${device.givenDisplayName}] Updating device - Power: ${powerState}, Room Temp: ${currentTemp}°C`);
-
           accessory.context.device = device;
           this.api.updatePlatformAccessories([accessory]);
           // Notify the accessory instance to update its characteristics
+          // (it will log if anything changed)
           accessoryInstance.updateFromDevice(device);
           updatedCount++;
         }
       }
-      this.log.debug(`Successfully updated ${updatedCount} of ${devices.length} devices`);
+      this.log.debug(`Refresh complete: ${updatedCount} device(s) updated`);
     } catch (error) {
       this.log.error('Failed to refresh devices:', error);
     }

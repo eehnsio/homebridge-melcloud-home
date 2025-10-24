@@ -7,6 +7,7 @@ export declare class MELCloudAccessory {
     private service;
     private device;
     private refreshDebounceTimer?;
+    private pendingMode?;
     constructor(platform: MELCloudHomePlatform, accessory: PlatformAccessory);
     private getSettings;
     getActive(): Promise<CharacteristicValue>;
