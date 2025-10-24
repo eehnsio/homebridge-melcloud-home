@@ -161,7 +161,8 @@ class MELCloudHomePlatform {
                 if (accessory && accessoryInstance) {
                     const settings = melcloud_api_1.MELCloudAPI.parseSettings(device.settings);
                     const currentTemp = settings.RoomTemperature;
-                    this.log.debug(`[${device.givenDisplayName}] Updating device - Room Temp: ${currentTemp}°C`);
+                    const powerState = settings.Power === 'True' ? 'ON' : 'OFF';
+                    this.log.debug(`[${device.givenDisplayName}] Updating device - Power: ${powerState}, Room Temp: ${currentTemp}°C`);
                     accessory.context.device = device;
                     this.api.updatePlatformAccessories([accessory]);
                     // Notify the accessory instance to update its characteristics

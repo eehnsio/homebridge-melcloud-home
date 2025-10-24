@@ -86,7 +86,7 @@ class MELCloudAccessory {
         this.platform.log.info(`[${this.device.givenDisplayName}] Set Active:`, power, `(current fan speed: ${currentFanSpeed})`);
         // Don't send command if the state is already correct
         if ((power && settings.Power === 'True') || (!power && settings.Power === 'False')) {
-            this.platform.log.info(`[${this.device.givenDisplayName}] Active state already matches, skipping command`);
+            this.platform.log.info(`[${this.device.givenDisplayName}] Active state already matches (${settings.Power}), skipping command`);
             return;
         }
         try {
@@ -166,6 +166,12 @@ class MELCloudAccessory {
         const settings = this.getSettings();
         if (settings.OperationMode === mode) {
             this.platform.log.info(`[${this.device.givenDisplayName}] Operation mode already matches, skipping command`);
+            return;
+        }
+        // Don't change mode if device is off - MELCloud API will reject with HTTP 400
+        // HomeKit will send setActive separately to power on
+        if (settings.Power === 'False') {
+            this.platform.log.info(`[${this.device.givenDisplayName}] Device is off, skipping mode change (will be set on power on)`);
             return;
         }
         try {
