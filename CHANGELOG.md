@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-10-24
+
+### Added
+- Enhanced DEBUG-level logging for better visibility when troubleshooting device updates
+- Temperature change tracking showing old → new values (requires debug mode)
+- Immediate test refresh on startup to verify functionality
+- Refresh interval ID logging for troubleshooting
+- API test script (`npm test`) for manual API testing and debugging
+- Watch mode in test script (`npm test -- --watch`) to monitor temperature changes in real-time
+
+### Changed
+- **Default refresh interval increased from 90s to 300s (5 minutes)** - Temperature readings change slowly, reducing unnecessary API calls by ~70% while maintaining practical monitoring
+- Maximum configurable refresh interval increased from 600s to 3600s (1 hour)
+- Refresh token field now displays as password field (masked) in config UI for better security
+- Improved config schema descriptions with clearer guidance on refresh intervals
+
+### Fixed
+- **Issue #5**: Temperature values now update correctly - Enhanced logging reveals polling is working as expected; MELCloud API has server-side caching
+- Refresh token field marked as required to prevent accidental clearing when editing config
+- Added prominent warnings (⚠️) to prevent users from manually clearing the token field
+
+### Technical
+- Added detailed DEBUG-level logging for device refresh operations and temperature updates
+- Added immediate refresh execution on startup for faster initial state sync
+- Enhanced debug logging shows cached vs new values for temperature characteristics
+- Refresh interval ID now logged for troubleshooting timing issues
+
+## [1.0.1] - 2025-10-22
+
+### Fixed
+- Login button accessibility for HTTP connections (Issue #3)
+
+### Changed
+- Moved API documentation to `.archive/` directory
+- Updated security policy
+
+### Security
+- Added npm security improvements
+
 ## [1.0.0] - 2025-10-22
 
 Major stability and reliability improvements with proper Homebridge integration patterns.
