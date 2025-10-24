@@ -317,7 +317,11 @@ class MELCloudAccessory {
         this.platform.log.debug(`[${this.device.givenDisplayName}] Updating characteristics`, settings);
         // Update all characteristics with current values
         this.service.updateCharacteristic(this.platform.Characteristic.Active, settings.Power === 'True' ? 1 : 0);
-        this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, parseFloat(settings.RoomTemperature));
+        const currentTemp = parseFloat(settings.RoomTemperature);
+        // Get the current cached value from HomeKit to see if it's different
+        const cachedValue = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
+        this.platform.log.debug(`[${this.device.givenDisplayName}] Updating HomeKit CurrentTemperature: ${cachedValue}°C -> ${currentTemp}°C (${currentTemp !== cachedValue ? 'CHANGED' : 'NO CHANGE'})`);
+        this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, currentTemp);
         // Validate cooling threshold temperature
         const setTemp = parseFloat(settings.SetTemperature);
         const defaultTemp = 20; // Default to 20°C if temperature is invalid
@@ -360,6 +364,11 @@ class MELCloudAccessory {
     }
     // Public method to update device state from platform refresh
     updateFromDevice(device) {
+        const oldSettings = melcloud_api_1.MELCloudAPI.parseSettings(this.device.settings);
+        const newSettings = melcloud_api_1.MELCloudAPI.parseSettings(device.settings);
+        const oldTemp = oldSettings.RoomTemperature;
+        const newTemp = newSettings.RoomTemperature;
+        this.platform.log.debug(`[${device.givenDisplayName}] updateFromDevice called - Temp: ${oldTemp}°C -> ${newTemp}°C`);
         this.device = device;
         this.accessory.context.device = device;
         this.updateCharacteristics();

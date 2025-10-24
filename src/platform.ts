@@ -140,36 +140,59 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   }
 
   private startRefreshInterval() {
-    const interval = (this.config.refreshInterval || 60) * 1000;
-    this.log.debug(`Starting refresh interval: ${interval / 1000}s`);
+    const interval = (this.config.refreshInterval || 300) * 1000;
+    this.log.info(`Starting automatic device refresh every ${interval / 1000} seconds`);
 
+    // Test immediate execution to verify the function works
+    this.log.info(`Testing immediate refresh to verify functionality...`);
+    setImmediate(async () => {
+      try {
+        await this.refreshAllDevices();
+        this.log.info(`Initial refresh completed successfully`);
+      } catch (error) {
+        this.log.error('Initial refresh failed:', error);
+      }
+    });
+
+    // Set up the interval
     this.refreshInterval = setInterval(async () => {
+      this.log.debug(`[Refresh Interval] Running scheduled device refresh...`);
       try {
         await this.refreshAllDevices();
       } catch (error) {
         this.log.error('Failed to refresh devices:', error);
       }
     }, interval);
+
+    this.log.info(`Refresh interval created with ID: ${this.refreshInterval}`);
   }
 
   private async refreshAllDevices() {
-    this.log.debug('Refreshing device states...');
+    this.log.debug('Refreshing device states from MELCloud API...');
 
     try {
       const devices = await this.melcloudAPI.getAllDevices();
+      this.log.debug(`Received ${devices.length} devices from MELCloud API`);
 
+      let updatedCount = 0;
       for (const device of devices) {
         const uuid = this.api.hap.uuid.generate(device.id);
         const accessory = this.accessories.find(acc => acc.UUID === uuid);
         const accessoryInstance = this.accessoryInstances.get(uuid);
 
         if (accessory && accessoryInstance) {
+          const settings = MELCloudAPI.parseSettings(device.settings);
+          const currentTemp = settings.RoomTemperature;
+          this.log.debug(`[${device.givenDisplayName}] Updating device - Room Temp: ${currentTemp}°C`);
+
           accessory.context.device = device;
           this.api.updatePlatformAccessories([accessory]);
           // Notify the accessory instance to update its characteristics
           accessoryInstance.updateFromDevice(device);
+          updatedCount++;
         }
       }
+      this.log.debug(`Successfully updated ${updatedCount} of ${devices.length} devices`);
     } catch (error) {
       this.log.error('Failed to refresh devices:', error);
     }

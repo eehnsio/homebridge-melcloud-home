@@ -375,9 +375,18 @@ export class MELCloudAccessory {
       settings.Power === 'True' ? 1 : 0,
     );
 
+    const currentTemp = parseFloat(settings.RoomTemperature);
+
+    // Get the current cached value from HomeKit to see if it's different
+    const cachedValue = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
+
+    this.platform.log.debug(
+      `[${this.device.givenDisplayName}] Updating HomeKit CurrentTemperature: ${cachedValue}°C -> ${currentTemp}°C (${currentTemp !== cachedValue ? 'CHANGED' : 'NO CHANGE'})`,
+    );
+
     this.service.updateCharacteristic(
       this.platform.Characteristic.CurrentTemperature,
-      parseFloat(settings.RoomTemperature),
+      currentTemp,
     );
 
     // Validate cooling threshold temperature
@@ -446,6 +455,15 @@ export class MELCloudAccessory {
 
   // Public method to update device state from platform refresh
   public updateFromDevice(device: AirToAirUnit) {
+    const oldSettings = MELCloudAPI.parseSettings(this.device.settings);
+    const newSettings = MELCloudAPI.parseSettings(device.settings);
+    const oldTemp = oldSettings.RoomTemperature;
+    const newTemp = newSettings.RoomTemperature;
+
+    this.platform.log.debug(
+      `[${device.givenDisplayName}] updateFromDevice called - Temp: ${oldTemp}°C -> ${newTemp}°C`,
+    );
+
     this.device = device;
     this.accessory.context.device = device;
     this.updateCharacteristics();
