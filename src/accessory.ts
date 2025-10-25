@@ -207,10 +207,22 @@ export class MELCloudAccessory {
     }
 
     switch (mode) {
-      case 'Heat':
-        return this.platform.Characteristic.CurrentHeaterCoolerState.HEATING;
-      case 'Cool':
-        return this.platform.Characteristic.CurrentHeaterCoolerState.COOLING;
+      case 'Heat': {
+        const roomTemp = parseFloat(settings.RoomTemperature);
+        const targetTemp = parseFloat(settings.SetTemperature);
+        // Only show heating if room is below target
+        return roomTemp < targetTemp
+          ? this.platform.Characteristic.CurrentHeaterCoolerState.HEATING
+          : this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+      }
+      case 'Cool': {
+        const roomTemp = parseFloat(settings.RoomTemperature);
+        const targetTemp = parseFloat(settings.SetTemperature);
+        // Only show cooling if room is above target
+        return roomTemp > targetTemp
+          ? this.platform.Characteristic.CurrentHeaterCoolerState.COOLING
+          : this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+      }
       case 'Automatic':  // Auto mode - infer state from room temp vs target
       case 'Auto': {
         const roomTemp = parseFloat(settings.RoomTemperature);
@@ -322,14 +334,15 @@ export class MELCloudAccessory {
   async getCoolingThresholdTemperature(): Promise<CharacteristicValue> {
     const settings = this.getSettings();
     const currentTemp = parseFloat(settings.SetTemperature);
+    const mode = settings.OperationMode;
 
-    // If we have a cached cooling threshold, use it
-    // Otherwise, use device temperature + 2°C as default spread
-    if (this.coolingThreshold !== undefined) {
+    // In AUTO mode, use cached cooling threshold for range display
+    if ((mode === 'Automatic' || mode === 'Auto') && this.coolingThreshold !== undefined) {
       return this.coolingThreshold;
     }
 
-    return currentTemp + 2;
+    // In other modes (Heat/Cool/Fan/Dry), return actual device setpoint
+    return currentTemp;
   }
 
   async setCoolingThresholdTemperature(value: CharacteristicValue) {
@@ -340,22 +353,31 @@ export class MELCloudAccessory {
     this.coolingThreshold = temp;
     this.accessory.context.coolingThreshold = temp;
 
-    // Calculate midpoint if we have both thresholds
-    await this.updateAutoModeTemperature();
+    const settings = this.getSettings();
+    const mode = settings.OperationMode;
+
+    // Only use midpoint calculation in AUTO mode
+    if (mode === 'Automatic' || mode === 'Auto') {
+      await this.updateAutoModeTemperature();
+    } else {
+      // In non-AUTO modes, set temperature directly
+      await this.setTemperature(temp);
+    }
   }
 
   // Heating Threshold Temperature
   async getHeatingThresholdTemperature(): Promise<CharacteristicValue> {
     const settings = this.getSettings();
     const currentTemp = parseFloat(settings.SetTemperature);
+    const mode = settings.OperationMode;
 
-    // If we have a cached heating threshold, use it
-    // Otherwise, use device temperature - 2°C as default spread
-    if (this.heatingThreshold !== undefined) {
+    // In AUTO mode, use cached heating threshold for range display
+    if ((mode === 'Automatic' || mode === 'Auto') && this.heatingThreshold !== undefined) {
       return this.heatingThreshold;
     }
 
-    return currentTemp - 2;
+    // In other modes (Heat/Cool/Fan/Dry), return actual device setpoint
+    return currentTemp;
   }
 
   async setHeatingThresholdTemperature(value: CharacteristicValue) {
@@ -366,8 +388,16 @@ export class MELCloudAccessory {
     this.heatingThreshold = temp;
     this.accessory.context.heatingThreshold = temp;
 
-    // Calculate midpoint if we have both thresholds
-    await this.updateAutoModeTemperature();
+    const settings = this.getSettings();
+    const mode = settings.OperationMode;
+
+    // Only use midpoint calculation in AUTO mode
+    if (mode === 'Automatic' || mode === 'Auto') {
+      await this.updateAutoModeTemperature();
+    } else {
+      // In non-AUTO modes, set temperature directly
+      await this.setTemperature(temp);
+    }
   }
 
   /**

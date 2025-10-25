@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6] - 2025-10-25
+
+### Fixed
+- **Critical: Temperature threshold handling** - Fixed multiple issues with temperature control in non-AUTO modes
+  - **Display bug**: Was showing cached AUTO mode threshold instead of actual device target
+  - **Setter bug**: Temperature setters calculated midpoint in all modes (e.g., user sets 22°C → device gets 21.25°C)
+  - **State display bug**: Always showed HEATING/COOLING even when idle
+  - Now correctly:
+    - Shows actual device setpoint in COOL/HEAT modes
+    - Sets exact temperature specified by user (no midpoint calculation)
+    - Shows IDLE state when room temp matches target
+    - Only shows HEATING when room < target in HEAT mode
+    - Only shows COOLING when room > target in COOL mode
+  - AUTO mode behavior unchanged (midpoint calculation still works correctly)
+
 ## [1.1.5] - 2025-10-25
 
 ### Fixed
@@ -218,6 +233,7 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.1.6]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.6
 [1.1.5]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.5
 [1.1.4]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.4
 [1.1.3]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.3
