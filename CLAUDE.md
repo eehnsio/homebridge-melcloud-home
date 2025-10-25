@@ -50,9 +50,23 @@ Implements HomeKit HeaterCooler service for each AC unit:
 - **Debounced Refresh**: Uses 2-second debounce timer to prevent API spam when user changes multiple settings rapidly
 - **State Management**:
   - Power control with pre-refresh to detect manual changes
-  - Mode switching (Heat/Cool/Auto) with pending mode storage when device is off
+  - Mode switching (Heat/Cool/Auto/Fan/Dry) with pending mode storage when device is off
   - Temperature thresholds with HomeKit validation (min 16°C cooling, 10°C heating)
   - Fan speed mapped to 1-6 range (0 would be treated as "off" by HomeKit)
+- **AUTO Mode Temperature Handling**:
+  - HomeKit shows heating/cooling threshold range (e.g., "Keep between 20°C - 24°C")
+  - MELCloud API only accepts single setpoint temperature
+  - Plugin calculates midpoint: (heatingThreshold + coolingThreshold) / 2
+  - Thresholds stored in `accessory.context` for persistence across restarts
+  - Example: User sets 20-24°C → sends 22°C to device
+- **AUTO Mode State Display**:
+  - Infers heating/cooling state based on room temp vs target
+  - Shows HEATING when room < target - 1°C (orange in HomeKit)
+  - Shows COOLING when room > target + 1°C (blue in HomeKit)
+  - Shows IDLE when within ±1°C of target
+- **FAN/DRY Mode Support**:
+  - Both modes display as IDLE (neither heating nor cooling)
+  - Can only be set via MELCloud app or physical remote (HomeKit limitation)
 - **Change Detection**: Logs state changes with old→new value comparisons
 - **Special Handling**:
   - Fan speed normalization (API alternates between "0" and "Auto")
@@ -180,3 +194,4 @@ config.schema.json       # Plugin configuration schema for Homebridge UI
 - Enable `debug: true` in plugin config for verbose logging at INFO level (no `-D` flag needed)
 - Logs include: device state changes, API calls, refresh operations, characteristic updates
 - Check Homebridge logs for `[DEBUG]` prefixed messages when troubleshooting
+- Homebridge is hosted on another device in my setup, so I need to build/pack it to test locally. always do this when we are preparing new changes

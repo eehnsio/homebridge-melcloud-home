@@ -155,7 +155,7 @@ class PluginUiServer extends HomebridgePluginUiServer {
         : {
             platform: 'MELCloudHome',
             name: 'MELCloud Home',
-            refreshInterval: 300,
+            refreshInterval: 30,
             debug: false
           };
 

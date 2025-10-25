@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2025-10-25
+
+### Fixed
+- **AUTO mode temperature control** - Fixed confusing UX when setting temperature range in HomeKit
+  - HomeKit shows heating/cooling threshold range (e.g., "Keep between 20°C - 24°C")
+  - MELCloud API only accepts single setpoint temperature
+  - Plugin now calculates midpoint from range and sends to device
+  - Example: Range 20-24°C → sends 22°C to device
+  - Device will heat below ~21°C and cool above ~23°C (based on internal hysteresis)
+  - Eliminates erratic behavior from rapid heating/cooling threshold changes
+  - Temperature range preferences now persist across Homebridge restarts
+- **AUTO mode state display** - HomeKit now correctly shows heating/cooling state in AUTO mode
+  - Infers state based on room temperature vs target setpoint
+  - Shows orange (HEATING) when room < target - 1°C
+  - Shows blue (COOLING) when room > target + 1°C
+  - Shows idle when within ±1°C of target
+- **Default refresh interval** - Fixed remaining hardcoded 300s defaults to 30s (aligns with v1.1.3)
+- **FAN and DRY mode support** - Now correctly handles FAN and DRY operation modes
+  - Both modes display as IDLE (neither heating nor cooling)
+  - Note: FAN/DRY modes can only be set via MELCloud app or physical remote (HomeKit limitation)
+
+### Changed
+- Temperature thresholds now tracked separately in AUTO mode for better UX
+- Thresholds stored in accessory context for persistence across restarts
+- Added clear logging showing range → midpoint calculation
+- Current state intelligently inferred in AUTO mode using 1°C hysteresis
+
 ## [1.1.4] - 2025-10-25
 
 ### Fixed
@@ -191,6 +218,7 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.1.5]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.5
 [1.1.4]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.4
 [1.1.3]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.3
 [1.1.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.1

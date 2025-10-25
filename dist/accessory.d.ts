@@ -8,6 +8,8 @@ export declare class MELCloudAccessory {
     private device;
     private refreshDebounceTimer?;
     private pendingMode?;
+    private heatingThreshold?;
+    private coolingThreshold?;
     constructor(platform: MELCloudHomePlatform, accessory: PlatformAccessory);
     private getSettings;
     getActive(): Promise<CharacteristicValue>;
@@ -20,6 +22,11 @@ export declare class MELCloudAccessory {
     setCoolingThresholdTemperature(value: CharacteristicValue): Promise<void>;
     getHeatingThresholdTemperature(): Promise<CharacteristicValue>;
     setHeatingThresholdTemperature(value: CharacteristicValue): Promise<void>;
+    /**
+     * Calculate and send midpoint temperature when in AUTO mode
+     * This reconciles HomeKit's range-based UI with MELCloud's single setpoint
+     */
+    private updateAutoModeTemperature;
     private setTemperature;
     getRotationSpeed(): Promise<CharacteristicValue>;
     setRotationSpeed(value: CharacteristicValue): Promise<void>;

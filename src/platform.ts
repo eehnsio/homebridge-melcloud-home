@@ -161,7 +161,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   }
 
   private startRefreshInterval() {
-    const interval = (this.config.refreshInterval || 300) * 1000;
+    const interval = (this.config.refreshInterval || 30) * 1000;
     this.log.info(`Starting automatic device refresh every ${interval / 1000} seconds`);
 
     // Test immediate execution to verify the function works

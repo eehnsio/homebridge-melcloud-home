@@ -8,11 +8,20 @@ export class MELCloudAccessory {
   private refreshDebounceTimer?: NodeJS.Timeout;
   private pendingMode?: string; // Store mode changes requested while device is off
 
+  // Track heating and cooling thresholds separately for AUTO mode
+  // These represent what HomeKit wants, we'll calculate midpoint for MELCloud
+  private heatingThreshold?: number;
+  private coolingThreshold?: number;
+
   constructor(
     private readonly platform: MELCloudHomePlatform,
     private readonly accessory: PlatformAccessory,
   ) {
     this.device = accessory.context.device;
+
+    // Restore cached thresholds from accessory context (persists across restarts)
+    this.heatingThreshold = accessory.context.heatingThreshold;
+    this.coolingThreshold = accessory.context.coolingThreshold;
 
     // Set accessory information
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
@@ -202,9 +211,22 @@ export class MELCloudAccessory {
         return this.platform.Characteristic.CurrentHeaterCoolerState.HEATING;
       case 'Cool':
         return this.platform.Characteristic.CurrentHeaterCoolerState.COOLING;
-      case 'Automatic':  // Auto mode - report as IDLE since we don't know if heating/cooling
-      case 'Auto':
+      case 'Automatic':  // Auto mode - infer state from room temp vs target
+      case 'Auto': {
+        const roomTemp = parseFloat(settings.RoomTemperature);
+        const targetTemp = parseFloat(settings.SetTemperature);
+
+        // Use 1°C hysteresis to match typical device behavior
+        // Device heats if room < target - 1°C, cools if room > target + 1°C
+        if (roomTemp < targetTemp - 1) {
+          return this.platform.Characteristic.CurrentHeaterCoolerState.HEATING;
+        } else if (roomTemp > targetTemp + 1) {
+          return this.platform.Characteristic.CurrentHeaterCoolerState.COOLING;
+        }
         return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+      }
+      case 'Fan':  // Fan mode - just circulating air, not heating/cooling
+      case 'Dry':  // Dry mode - dehumidifying, treat as idle
       default:
         return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
     }
@@ -299,23 +321,75 @@ export class MELCloudAccessory {
   // Cooling Threshold Temperature
   async getCoolingThresholdTemperature(): Promise<CharacteristicValue> {
     const settings = this.getSettings();
-    return parseFloat(settings.SetTemperature);
+    const currentTemp = parseFloat(settings.SetTemperature);
+
+    // If we have a cached cooling threshold, use it
+    // Otherwise, use device temperature + 2°C as default spread
+    if (this.coolingThreshold !== undefined) {
+      return this.coolingThreshold;
+    }
+
+    return currentTemp + 2;
   }
 
   async setCoolingThresholdTemperature(value: CharacteristicValue) {
-    this.platform.log.info(`[${this.device.givenDisplayName}] Set Cooling Threshold:`, value);
-    await this.setTemperature(value as number);
+    const temp = value as number;
+    this.platform.log.info(`[${this.device.givenDisplayName}] Set Cooling Threshold:`, temp);
+
+    // Store the cooling threshold (in memory and persist to context)
+    this.coolingThreshold = temp;
+    this.accessory.context.coolingThreshold = temp;
+
+    // Calculate midpoint if we have both thresholds
+    await this.updateAutoModeTemperature();
   }
 
   // Heating Threshold Temperature
   async getHeatingThresholdTemperature(): Promise<CharacteristicValue> {
     const settings = this.getSettings();
-    return parseFloat(settings.SetTemperature);
+    const currentTemp = parseFloat(settings.SetTemperature);
+
+    // If we have a cached heating threshold, use it
+    // Otherwise, use device temperature - 2°C as default spread
+    if (this.heatingThreshold !== undefined) {
+      return this.heatingThreshold;
+    }
+
+    return currentTemp - 2;
   }
 
   async setHeatingThresholdTemperature(value: CharacteristicValue) {
-    this.platform.log.info(`[${this.device.givenDisplayName}] Set Heating Threshold:`, value);
-    await this.setTemperature(value as number);
+    const temp = value as number;
+    this.platform.log.info(`[${this.device.givenDisplayName}] Set Heating Threshold:`, temp);
+
+    // Store the heating threshold (in memory and persist to context)
+    this.heatingThreshold = temp;
+    this.accessory.context.heatingThreshold = temp;
+
+    // Calculate midpoint if we have both thresholds
+    await this.updateAutoModeTemperature();
+  }
+
+  /**
+   * Calculate and send midpoint temperature when in AUTO mode
+   * This reconciles HomeKit's range-based UI with MELCloud's single setpoint
+   */
+  private async updateAutoModeTemperature() {
+    // Only calculate midpoint if both thresholds are set
+    if (this.heatingThreshold === undefined || this.coolingThreshold === undefined) {
+      return;
+    }
+
+    // Calculate midpoint
+    const midpoint = (this.heatingThreshold + this.coolingThreshold) / 2;
+
+    this.platform.log.info(
+      `[${this.device.givenDisplayName}] AUTO mode: Heating ${this.heatingThreshold}°C, ` +
+      `Cooling ${this.coolingThreshold}°C → Sending midpoint ${midpoint.toFixed(1)}°C to device`
+    );
+
+    // Send the midpoint temperature to the device
+    await this.setTemperature(midpoint);
   }
 
   private async setTemperature(temp: number) {
@@ -489,10 +563,21 @@ export class MELCloudAccessory {
     const HOMEKIT_MIN_COOLING = 16;
     const HOMEKIT_MIN_HEATING = 10;
 
+    // Initialize cached thresholds if not set
+    // For AUTO mode: device setpoint is the midpoint, so we calculate ±2°C spread
+    if (this.heatingThreshold === undefined) {
+      this.heatingThreshold = validSetTemp - 2;
+      this.accessory.context.heatingThreshold = this.heatingThreshold;
+    }
+    if (this.coolingThreshold === undefined) {
+      this.coolingThreshold = validSetTemp + 2;
+      this.accessory.context.coolingThreshold = this.coolingThreshold;
+    }
+
     // Clamp to both device capabilities AND HomeKit minimums
     const coolingTemp = Math.max(
       Math.max(this.device.capabilities.minTempCoolDry, HOMEKIT_MIN_COOLING),
-      Math.min(this.device.capabilities.maxTempCoolDry, validSetTemp),
+      Math.min(this.device.capabilities.maxTempCoolDry, this.coolingThreshold),
     );
     this.service.updateCharacteristic(
       this.platform.Characteristic.CoolingThresholdTemperature,
@@ -502,7 +587,7 @@ export class MELCloudAccessory {
     // Validate heating threshold temperature
     const heatingTemp = Math.max(
       Math.max(this.device.capabilities.minTempHeat, HOMEKIT_MIN_HEATING),
-      Math.min(this.device.capabilities.maxTempHeat, validSetTemp),
+      Math.min(this.device.capabilities.maxTempHeat, this.heatingThreshold),
     );
     this.service.updateCharacteristic(
       this.platform.Characteristic.HeatingThresholdTemperature,
