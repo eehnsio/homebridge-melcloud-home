@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2025-10-25
+
+### Fixed
+- **Critical: Temperature sync not working** - Changed from `updateCharacteristic()` to `updateValue()` to force HomeKit to recognize temperature changes
+- **Critical: Refresh not working for new accessories** - Fixed bug where newly created accessories weren't added to the accessories array
+- **Auto mode not working** - API uses "Automatic" instead of "Auto" for operation mode
+- **Fan speed false changes** - Normalized fan speed values (API alternates between "0" and "Auto" for auto mode)
+- **CI build failure** - Corrected Homebridge dependency version (was trying to use non-existent v2.0.0)
+
+### Changed
+- **Default refresh interval changed from 300s to 30s** - Much more responsive to changes made via MELCloud app or physical remote
+- **Improved debug logging** - Added `debugLog()` helper that respects `config.debug` flag and shows at INFO level (no `-D` flag needed)
+- Refresh interval now configurable from 10-3600 seconds (was 30-3600)
+
+### Added
+- Complete custom UI with all settings included (refresh interval, debug mode)
+- Auto-save for settings (no manual save button needed)
+- Comprehensive debug logging for troubleshooting without requiring Homebridge debug mode
+- Enhanced change detection logging (shows what changed: temp, power, mode, fan)
+
+### Technical
+- Settings now preserved when changing them (no more lost tokens)
+- Debug logs use INFO level when `config.debug` is enabled
+- GitHub Actions auto-publish workflow with changelog generation
+- Fan speed normalization to prevent false change notifications
+
+## [1.1.2] - 2025-10-25 [UNPUBLISHED]
+
+Internal development version with iterative fixes, superseded by v1.1.3.
+
 ## [1.1.1] - 2025-10-25
 
 ### Fixed
@@ -145,6 +175,7 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.1.3]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.3
 [1.1.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.1
 [1.1.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.0
 [1.0.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.0.0
