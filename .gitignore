@@ -16,6 +16,9 @@ node_modules/
 # Build artifacts
 *.tgz
 
+# Test files
+test-*.js
+
 # Archived investigation files
 .archive/
 
