@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-10-25
+
+### Fixed
+- **Critical: HomeKit UI not updating after commands** - Implemented optimistic updates to immediately reflect state changes in HomeKit without waiting for API confirmation
+- **Issue #4 (Recreated)**: HomeKit showing devices as OFF when they are physically ON - Added pre-refresh before state changes to sync with actual device state
+- Temperature threshold validation warnings at startup - Now sets safe default values before applying props to prevent validation errors on cached values
+- Periodic refresh logs not visible - Changed refresh interval logging from debug to info level for better visibility
+
+### Changed
+- Improved immediate feedback when controlling devices - HomeKit UI now updates instantly instead of waiting 500ms-2s for API confirmation
+- All setter functions (power, mode, temperature, fan speed) now use optimistic updates for responsive UI
+- Enhanced state change logging to show actual changes (Power: OFF -> ON) instead of just current values
+- Periodic refresh now logs summary info (device count, success/failure) at info level while detailed state logs remain at debug level
+
+### Technical
+- Implemented optimistic state updates: cached device state updates immediately after successful API calls
+- Added pre-command refresh in setActive() to detect manual changes made outside HomeKit
+- Characteristic updates now happen synchronously after API calls instead of relying solely on periodic refresh
+- Temperature characteristics now set safe default values before applying props to avoid validation warnings
+
 ## [1.1.0] - 2025-10-24
 
 ### Added
@@ -125,6 +145,8 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.1.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.1
+[1.1.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.0
 [1.0.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.0.0
 [0.4.0-beta.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v0.4.0-beta.1
 [0.2.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v0.2.0

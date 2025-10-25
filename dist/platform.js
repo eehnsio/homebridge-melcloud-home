@@ -138,7 +138,7 @@ class MELCloudHomePlatform {
         });
         // Set up the interval
         this.refreshInterval = setInterval(async () => {
-            this.log.debug(`[Refresh Interval] Running scheduled device refresh...`);
+            this.log.info(`[Refresh Interval] Running scheduled device refresh...`);
             try {
                 await this.refreshAllDevices();
             }
@@ -149,10 +149,10 @@ class MELCloudHomePlatform {
         this.log.info(`Refresh interval created with ID: ${this.refreshInterval}`);
     }
     async refreshAllDevices() {
-        this.log.debug('Refreshing device states from MELCloud API...');
+        this.log.info('Refreshing device states from MELCloud API...');
         try {
             const devices = await this.melcloudAPI.getAllDevices();
-            this.log.debug(`Received ${devices.length} devices from MELCloud API`);
+            this.log.info(`Received ${devices.length} devices from MELCloud API`);
             let updatedCount = 0;
             for (const device of devices) {
                 const uuid = this.api.hap.uuid.generate(device.id);
@@ -167,7 +167,7 @@ class MELCloudHomePlatform {
                     updatedCount++;
                 }
             }
-            this.log.debug(`Refresh complete: ${updatedCount} device(s) updated`);
+            this.log.info(`Successfully updated ${updatedCount} of ${devices.length} devices`);
         }
         catch (error) {
             this.log.error('Failed to refresh devices:', error);
