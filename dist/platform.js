@@ -20,6 +20,15 @@ class MELCloudHomePlatform {
         });
     }
     /**
+     * Debug logging helper - respects config.debug flag
+     * When debug is enabled, logs at INFO level so it shows without -D flag
+     */
+    debugLog(message, ...args) {
+        if (this.config.debug) {
+            this.log.info(`[DEBUG] ${message}`, ...args);
+        }
+    }
+    /**
      * Initialize authentication - uses OAuth refresh token from Homebridge UI
      */
     async initializeAuthentication() {
@@ -85,6 +94,7 @@ class MELCloudHomePlatform {
                     this.log.info('Adding new accessory:', device.givenDisplayName);
                     const accessory = new this.api.platformAccessory(device.givenDisplayName, uuid);
                     accessory.context.device = device;
+                    this.accessories.push(accessory); // Add to our array for refresh to find it!
                     const accessoryInstance = new accessory_1.MELCloudAccessory(this, accessory);
                     this.accessoryInstances.set(uuid, accessoryInstance);
                     this.api.registerPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, [accessory]);

@@ -12,6 +12,11 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     private refreshInterval?;
     constructor(log: Logger, config: PlatformConfig, api: API);
     /**
+     * Debug logging helper - respects config.debug flag
+     * When debug is enabled, logs at INFO level so it shows without -D flag
+     */
+    debugLog(message: string, ...args: any[]): void;
+    /**
      * Initialize authentication - uses OAuth refresh token from Homebridge UI
      */
     private initializeAuthentication;

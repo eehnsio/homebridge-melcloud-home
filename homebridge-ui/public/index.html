@@ -8,7 +8,11 @@
 <body>
     <div class="container-fluid p-4">
         <div id="app">
-            <h3 class="mb-4">MELCloud Home - Setup</h3>
+            <h3 class="mb-4">MELCloud Home - Authentication Setup</h3>
+            <p class="text-muted mb-4">
+                Use this page to authenticate with MELCloud and get your refresh token.
+                After saving the token, configure plugin settings (refresh interval, debug mode) using the standard form below, then click <strong>SAVE</strong> at the bottom of the page.
+            </p>
 
             <!-- Step 1: Get Token -->
             <div class="card mb-3">
@@ -46,9 +50,9 @@
             </div>
 
             <!-- Step 2: Save Token -->
-            <div class="card">
+            <div class="card mb-3">
                 <div class="card-header">
-                    <strong>Step 2: Save Token</strong>
+                    <strong>Step 2: Save Authentication Token</strong>
                 </div>
                 <div class="card-body">
                     <textarea
@@ -58,9 +62,55 @@
                         placeholder="Paste your refresh token here..."
                     ></textarea>
                     <button type="button" id="save-token-button" class="btn btn-primary btn-lg w-100">
-                        Save Token to Config
+                        Save Token
                     </button>
                     <div id="save-result" class="mt-3"></div>
+                </div>
+            </div>
+
+            <!-- Step 3: Plugin Configuration -->
+            <div class="card">
+                <div class="card-header">
+                    <strong>Step 3: Plugin Settings</strong>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="refresh-interval" class="form-label">
+                            <strong>Refresh Interval (seconds)</strong>
+                        </label>
+                        <input
+                            type="number"
+                            class="form-control"
+                            id="refresh-interval"
+                            min="10"
+                            max="3600"
+                            value="30"
+                        >
+                        <small class="text-muted">
+                            How often to check MELCloud for device updates. Default: 30 seconds.
+                        </small>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            id="debug-mode"
+                        >
+                        <label class="form-check-label" for="debug-mode">
+                            <strong>Debug Mode</strong>
+                        </label>
+                        <div>
+                            <small class="text-muted">
+                                Enable detailed logging for troubleshooting
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>Note:</strong> Settings are saved automatically when you change them.
+                        Restart Homebridge for changes to take effect.
+                    </div>
                 </div>
             </div>
         </div>
@@ -314,10 +364,52 @@
             return base64;
         }
 
+        // Auto-save settings when changed
+        async function saveSettings() {
+            try {
+                const pluginConfig = await homebridge.getPluginConfig();
+                const config = (pluginConfig && pluginConfig.length > 0) ? pluginConfig[0] : {
+                    platform: 'MELCloudHome',
+                    name: 'MELCloud Home'
+                };
+
+                config.refreshInterval = parseInt(document.getElementById('refresh-interval').value);
+                config.debug = document.getElementById('debug-mode').checked;
+
+                await homebridge.updatePluginConfig([config]);
+                await homebridge.savePluginConfig();
+                console.log('[UI] Settings saved:', config);
+            } catch (error) {
+                console.error('[UI] Failed to save settings:', error);
+            }
+        }
+
+        // Load current settings
+        async function loadSettings() {
+            try {
+                const pluginConfig = await homebridge.getPluginConfig();
+                if (pluginConfig && pluginConfig.length > 0) {
+                    const config = pluginConfig[0];
+                    document.getElementById('refresh-interval').value = config.refreshInterval || 30;
+                    document.getElementById('debug-mode').checked = config.debug || false;
+                    console.log('[UI] Settings loaded:', config);
+                }
+            } catch (error) {
+                console.error('[UI] Failed to load settings:', error);
+            }
+        }
+
         // Initialize
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
             homebridge = window.homebridge;
             console.log('[MELCloudHome UI] Ready');
+
+            // Load current settings
+            await loadSettings();
+
+            // Auto-save when settings change
+            document.getElementById('refresh-interval').addEventListener('change', saveSettings);
+            document.getElementById('debug-mode').addEventListener('change', saveSettings);
         });
     </script>
 </body>

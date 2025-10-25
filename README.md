@@ -70,10 +70,12 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed instructions with screenshots.
 
 ### Configuration
 
+All settings can be configured through the custom UI - click the Settings (⚙️) button on the plugin.
+
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `refreshInterval` | How often to check device status (seconds). Temperature readings change slowly, so 5 minutes is typically sufficient. Lower values (60-120s) will poll more frequently but may hit MELCloud's server-side cache anyway. | 300 |
-| `debug` | Show detailed logs for troubleshooting | false |
+| `refreshInterval` | How often to check device status (seconds). With 30-second polling, changes from the MELCloud app or remote control are picked up quickly. Configurable from 10-3600 seconds. | 30 |
+| `debug` | Enable detailed logging for troubleshooting. Shows all refresh data, API calls, and state changes without requiring Homebridge debug mode. | false |
 
 ### Troubleshooting
 

@@ -78,14 +78,14 @@ class MELCloudAccessory {
     async getActive() {
         const settings = this.getSettings();
         const isActive = settings.Power === 'True';
-        this.platform.log.debug(`[${this.device.givenDisplayName}] Get Active:`, isActive);
+        this.platform.debugLog(`[${this.device.givenDisplayName}] Get Active:`, isActive);
         return isActive ? this.platform.Characteristic.Active.ACTIVE : this.platform.Characteristic.Active.INACTIVE;
     }
     async setActive(value) {
         const power = value === this.platform.Characteristic.Active.ACTIVE;
         // Refresh device state before checking to avoid acting on stale cached data
-        this.platform.log.debug(`[${this.device.givenDisplayName}] Set Active requested: ${power}`);
-        this.platform.log.debug(`[${this.device.givenDisplayName}] Refreshing device state before proceeding...`);
+        this.platform.debugLog(`[${this.device.givenDisplayName}] Set Active requested: ${power}`);
+        this.platform.debugLog(`[${this.device.givenDisplayName}] Refreshing device state before proceeding...`);
         await this.platform.refreshDevice(this.device.id);
         // Get fresh settings after refresh
         const settings = this.getSettings();
@@ -96,7 +96,7 @@ class MELCloudAccessory {
             '0': 1, '1': 2, '2': 3, '3': 4, '4': 5, '5': 6,
         };
         const currentFanSpeed = reverseSpeedMap[settings.SetFanSpeed] ?? 1;
-        this.platform.log.debug(`[${this.device.givenDisplayName}] Current state after refresh: Power='${settings.Power}', Fan=${currentFanSpeed}`);
+        this.platform.debugLog(`[${this.device.givenDisplayName}] Current state after refresh: Power='${settings.Power}', Fan=${currentFanSpeed}`);
         // Don't send command if the state is already correct
         if ((power && settings.Power === 'True') || (!power && settings.Power === 'False')) {
             this.platform.log.info(`[${this.device.givenDisplayName}] Active state already matches (${settings.Power}), skipping command`);
@@ -129,7 +129,7 @@ class MELCloudAccessory {
             });
             // Optimistically update the cached state immediately for responsive HomeKit UI
             // This prevents HomeKit from reverting the UI while waiting for API confirmation
-            this.platform.log.debug(`[${this.device.givenDisplayName}] Power command sent successfully, updating HomeKit state immediately`);
+            this.platform.debugLog(`[${this.device.givenDisplayName}] Power command sent successfully, updating HomeKit state immediately`);
             // Update the cached device settings to reflect the new power state
             const updatedSettings = this.device.settings.map(setting => {
                 if (setting.name === 'Power') {
@@ -164,6 +164,9 @@ class MELCloudAccessory {
                 return this.platform.Characteristic.CurrentHeaterCoolerState.HEATING;
             case 'Cool':
                 return this.platform.Characteristic.CurrentHeaterCoolerState.COOLING;
+            case 'Automatic': // Auto mode - report as IDLE since we don't know if heating/cooling
+            case 'Auto':
+                return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
             default:
                 return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
         }
@@ -177,7 +180,8 @@ class MELCloudAccessory {
                 return this.platform.Characteristic.TargetHeaterCoolerState.HEAT;
             case 'Cool':
                 return this.platform.Characteristic.TargetHeaterCoolerState.COOL;
-            case 'Auto':
+            case 'Automatic': // API returns 'Automatic'
+            case 'Auto': // Also support 'Auto' for backwards compatibility
             default:
                 return this.platform.Characteristic.TargetHeaterCoolerState.AUTO;
         }
@@ -193,7 +197,7 @@ class MELCloudAccessory {
                 break;
             case this.platform.Characteristic.TargetHeaterCoolerState.AUTO:
             default:
-                mode = 'Auto';
+                mode = 'Automatic'; // API uses 'Automatic' not 'Auto'
                 break;
         }
         this.platform.log.info(`[${this.device.givenDisplayName}] Set Target State:`, mode);
@@ -222,7 +226,7 @@ class MELCloudAccessory {
                 inStandbyMode: null,
             });
             // Optimistically update cached state immediately
-            this.platform.log.debug(`[${this.device.givenDisplayName}] Mode command sent successfully, updating cache`);
+            this.platform.debugLog(`[${this.device.givenDisplayName}] Mode command sent successfully, updating cache`);
             const updatedSettings = this.device.settings.map(setting => {
                 if (setting.name === 'OperationMode') {
                     return { ...setting, value: mode };
@@ -281,7 +285,7 @@ class MELCloudAccessory {
                 inStandbyMode: null,
             });
             // Optimistically update cached state immediately
-            this.platform.log.debug(`[${this.device.givenDisplayName}] Temperature command sent successfully, updating cache`);
+            this.platform.debugLog(`[${this.device.givenDisplayName}] Temperature command sent successfully, updating cache`);
             const updatedSettings = this.device.settings.map(setting => {
                 if (setting.name === 'SetTemperature') {
                     return { ...setting, value: temp.toString() };
@@ -320,7 +324,7 @@ class MELCloudAccessory {
             '5': 6,
         };
         const speed = reverseSpeedMap[fanSpeedText] ?? 1;
-        this.platform.log.debug(`[${this.device.givenDisplayName}] Get Rotation Speed: ${speed} (from: ${fanSpeedText})`);
+        this.platform.debugLog(`[${this.device.givenDisplayName}] Get Rotation Speed: ${speed} (from: ${fanSpeedText})`);
         return speed;
     }
     async setRotationSpeed(value) {
@@ -364,7 +368,7 @@ class MELCloudAccessory {
                 inStandbyMode: null,
             });
             // Optimistically update cached state immediately
-            this.platform.log.debug(`[${this.device.givenDisplayName}] Fan speed command sent successfully, updating cache`);
+            this.platform.debugLog(`[${this.device.givenDisplayName}] Fan speed command sent successfully, updating cache`);
             const updatedSettings = this.device.settings.map(setting => {
                 if (setting.name === 'SetFanSpeed') {
                     return { ...setting, value: fanSpeedText };
@@ -383,11 +387,17 @@ class MELCloudAccessory {
     // Update characteristics from device state
     updateCharacteristics() {
         const settings = this.getSettings();
-        this.platform.log.debug(`[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`);
+        this.platform.debugLog(`[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`);
         // Update all characteristics with current values
         this.service.updateCharacteristic(this.platform.Characteristic.Active, settings.Power === 'True' ? 1 : 0);
         const currentTemp = parseFloat(settings.RoomTemperature);
-        this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, currentTemp);
+        const cachedTemp = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
+        if (currentTemp !== cachedTemp) {
+            this.platform.log.info(`[${this.device.givenDisplayName}] Temperature update: ${cachedTemp}°C -> ${currentTemp}°C (from MELCloud: ${settings.RoomTemperature})`);
+        }
+        // Use updateValue to force HomeKit to recognize the change
+        this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+            .updateValue(currentTemp);
         // Validate cooling threshold temperature
         const setTemp = parseFloat(settings.SetTemperature);
         const defaultTemp = 20; // Default to 20°C if temperature is invalid
@@ -423,7 +433,7 @@ class MELCloudAccessory {
         }
         // Schedule new refresh after delay
         this.refreshDebounceTimer = setTimeout(() => {
-            this.platform.log.debug(`[${this.device.givenDisplayName}] Debounced refresh executing`);
+            this.platform.debugLog(`[${this.device.givenDisplayName}] Debounced refresh executing`);
             this.platform.refreshDevice(this.device.id);
             this.refreshDebounceTimer = undefined;
         }, delay);
@@ -432,12 +442,17 @@ class MELCloudAccessory {
     updateFromDevice(device) {
         const oldSettings = melcloud_api_1.MELCloudAPI.parseSettings(this.device.settings);
         const newSettings = melcloud_api_1.MELCloudAPI.parseSettings(device.settings);
+        // Log current state during refresh (respects config.debug)
+        this.platform.debugLog(`[${device.givenDisplayName}] Refresh: Power=${newSettings.Power}, Mode=${newSettings.OperationMode}, Temp=${newSettings.RoomTemperature}°C, Target=${newSettings.SetTemperature}°C, Fan=${newSettings.SetFanSpeed}`);
+        // Normalize fan speed: API sometimes returns "0" and sometimes "Auto" for auto mode
+        const normalizeFanSpeed = (speed) => (speed === '0' || speed === 'Auto') ? 'Auto' : speed;
         // Check if anything actually changed
         const tempChanged = oldSettings.RoomTemperature !== newSettings.RoomTemperature;
         const powerChanged = oldSettings.Power !== newSettings.Power;
         const modeChanged = oldSettings.OperationMode !== newSettings.OperationMode;
-        // Only log if something changed
-        if (tempChanged || powerChanged || modeChanged) {
+        const fanChanged = normalizeFanSpeed(oldSettings.SetFanSpeed) !== normalizeFanSpeed(newSettings.SetFanSpeed);
+        // Always log state changes (important for users to see)
+        if (tempChanged || powerChanged || modeChanged || fanChanged) {
             const changes = [];
             if (powerChanged) {
                 changes.push(`Power: ${oldSettings.Power} -> ${newSettings.Power}`);
@@ -448,7 +463,10 @@ class MELCloudAccessory {
             if (modeChanged) {
                 changes.push(`Mode: ${oldSettings.OperationMode} -> ${newSettings.OperationMode}`);
             }
-            this.platform.log.info(`[${device.givenDisplayName}] State changed: ${changes.join(', ')}`);
+            if (fanChanged) {
+                changes.push(`Fan: ${oldSettings.SetFanSpeed} -> ${newSettings.SetFanSpeed}`);
+            }
+            this.platform.log.info(`[${device.givenDisplayName}] ⚡ State changed: ${changes.join(', ')}`);
         }
         this.device = device;
         this.accessory.context.device = device;

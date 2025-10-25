@@ -1,24 +1,48 @@
 name: Publish to npm
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*' # Trigger on any tag starting with 'v' (e.g., v1.2.0, v1.2.0-beta.1)
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # Required for creating releases
       id-token: write # Required for provenance
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for changelog generation
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Determine npm tag (beta vs latest)
+        id: npm-tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ "$VERSION" == *"beta"* ]] || [[ "$VERSION" == *"alpha"* ]] || [[ "$VERSION" == *"rc"* ]]; then
+            echo "tag=beta" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "Publishing as beta (pre-release)"
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+            echo "Publishing as latest (stable)"
+          fi
 
       - name: Install dependencies
         run: npm ci
@@ -27,6 +51,35 @@ jobs:
         run: npm run build
 
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish --tag ${{ steps.npm-tag.outputs.tag }} --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "First release - no previous tag found"
+            CHANGELOG="Initial release"
+          else
+            echo "Generating changelog from $PREV_TAG to $GITHUB_REF_NAME"
+            CHANGELOG=$(git log $PREV_TAG..$GITHUB_REF_NAME --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # Write changelog to file for use in release
+          echo "$CHANGELOG" > changelog.txt
+          cat changelog.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: changelog.txt
+          prerelease: ${{ steps.npm-tag.outputs.prerelease }}
+          generate_release_notes: true # GitHub auto-generates additional notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

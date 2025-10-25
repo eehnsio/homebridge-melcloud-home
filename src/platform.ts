@@ -26,6 +26,16 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   }
 
   /**
+   * Debug logging helper - respects config.debug flag
+   * When debug is enabled, logs at INFO level so it shows without -D flag
+   */
+  public debugLog(message: string, ...args: any[]) {
+    if (this.config.debug) {
+      this.log.info(`[DEBUG] ${message}`, ...args);
+    }
+  }
+
+  /**
    * Initialize authentication - uses OAuth refresh token from Homebridge UI
    */
   private async initializeAuthentication() {
@@ -99,6 +109,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
           this.log.info('Adding new accessory:', device.givenDisplayName);
           const accessory = new this.api.platformAccessory(device.givenDisplayName, uuid);
           accessory.context.device = device;
+          this.accessories.push(accessory); // Add to our array for refresh to find it!
           const accessoryInstance = new MELCloudAccessory(this, accessory);
           this.accessoryInstances.set(uuid, accessoryInstance);
           this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
