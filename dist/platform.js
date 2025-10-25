@@ -4,6 +4,7 @@ exports.MELCloudHomePlatform = void 0;
 const settings_1 = require("./settings");
 const melcloud_api_1 = require("./melcloud-api");
 const accessory_1 = require("./accessory");
+const config_manager_1 = require("./config-manager");
 class MELCloudHomePlatform {
     constructor(log, config, api) {
         this.log = log;
@@ -14,6 +15,8 @@ class MELCloudHomePlatform {
         this.accessories = [];
         this.accessoryInstances = new Map();
         this.log.debug('Finished initializing platform:', this.config.name);
+        // Initialize config manager for token persistence
+        this.configManager = new config_manager_1.ConfigManager(this.log, this.api.user.storagePath());
         this.api.on('didFinishLaunching', async () => {
             this.log.info('Homebridge finished launching...');
             await this.initializeAuthentication();
@@ -40,6 +43,11 @@ class MELCloudHomePlatform {
                 this.melcloudAPI = new melcloud_api_1.MELCloudAPI({
                     refreshToken: this.config.refreshToken,
                     debug: this.config.debug || false,
+                    onTokenRefresh: async (newRefreshToken) => {
+                        // Save the new refresh token to config when it rotates
+                        this.log.info('🔄 Refresh token rotated by MELCloud API');
+                        await this.configManager.saveRefreshToken(newRefreshToken);
+                    },
                 });
                 this.log.info('✅ MELCloud API initialized successfully');
                 await this.discoverDevices();

@@ -10,6 +10,7 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     private readonly accessoryInstances;
     private melcloudAPI;
     private refreshInterval?;
+    private configManager;
     constructor(log: Logger, config: PlatformConfig, api: API);
     /**
      * Debug logging helper - respects config.debug flag

@@ -2,6 +2,7 @@ import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, 
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 import { MELCloudAPI, AirToAirUnit } from './melcloud-api';
 import { MELCloudAccessory } from './accessory';
+import { ConfigManager } from './config-manager';
 
 export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
@@ -11,6 +12,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   private readonly accessoryInstances: Map<string, MELCloudAccessory> = new Map();
   private melcloudAPI!: MELCloudAPI;
   private refreshInterval?: NodeJS.Timeout;
+  private configManager: ConfigManager;
 
   constructor(
     public readonly log: Logger,
@@ -18,6 +20,9 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
     public readonly api: API,
   ) {
     this.log.debug('Finished initializing platform:', this.config.name);
+
+    // Initialize config manager for token persistence
+    this.configManager = new ConfigManager(this.log, this.api.user.storagePath());
 
     this.api.on('didFinishLaunching', async () => {
       this.log.info('Homebridge finished launching...');
@@ -49,6 +54,11 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
         this.melcloudAPI = new MELCloudAPI({
           refreshToken: this.config.refreshToken,
           debug: this.config.debug || false,
+          onTokenRefresh: async (newRefreshToken: string) => {
+            // Save the new refresh token to config when it rotates
+            this.log.info('🔄 Refresh token rotated by MELCloud API');
+            await this.configManager.saveRefreshToken(newRefreshToken);
+          },
         });
 
         this.log.info('✅ MELCloud API initialized successfully');

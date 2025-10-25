@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2025-10-25
+
+### Fixed
+- **Critical: Plugin fails after changing settings and restarting** - Implemented automatic refresh token persistence to config when tokens rotate
+  - MELCloud API rotates refresh tokens on each access token refresh for security
+  - Previously, rotated tokens were only stored in memory and lost on restart
+  - Old (invalidated) tokens from config would cause `HTTP 400: invalid_grant` errors
+  - Now automatically saves new refresh tokens to config.json via ConfigManager
+- Added documentation to prevent settings from accidentally removing refresh token
+
+### Technical
+- Added `onTokenRefresh` callback to `MELCloudConfig` interface
+- MELCloud API now notifies platform when refresh tokens rotate
+- Platform automatically persists new tokens using existing ConfigManager
+- Refresh token survival guaranteed across restarts and config changes
+
 ## [1.1.3] - 2025-10-25
 
 ### Fixed
@@ -175,6 +191,7 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.1.4]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.4
 [1.1.3]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.3
 [1.1.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.1
 [1.1.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.0

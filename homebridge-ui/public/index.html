@@ -373,8 +373,11 @@
                     name: 'MELCloud Home'
                 };
 
+                // IMPORTANT: Preserve refreshToken when updating settings
+                // Otherwise changing settings will wipe out the token!
                 config.refreshInterval = parseInt(document.getElementById('refresh-interval').value);
                 config.debug = document.getElementById('debug-mode').checked;
+                // Keep existing refreshToken if it exists
 
                 await homebridge.updatePluginConfig([config]);
                 await homebridge.savePluginConfig();

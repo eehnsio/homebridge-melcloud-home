@@ -3,6 +3,7 @@ import https from 'https';
 export interface MELCloudConfig {
   refreshToken: string;
   debug?: boolean;
+  onTokenRefresh?: (newRefreshToken: string) => void;
 }
 
 export interface DeviceSetting {
@@ -173,6 +174,14 @@ export class MELCloudAPI {
             if (this.config.debug) {
               console.log('[MELCloud] ✅ Access token refreshed successfully');
               console.log('[MELCloud] Token expires in:', tokenResponse.expires_in, 'seconds');
+            }
+
+            // Notify platform if refresh token changed (for persistence)
+            if (this.config.onTokenRefresh && tokenResponse.refresh_token !== this.config.refreshToken) {
+              if (this.config.debug) {
+                console.log('[MELCloud] 🔄 Refresh token rotated, saving to config...');
+              }
+              this.config.onTokenRefresh(tokenResponse.refresh_token);
             }
 
             resolve();

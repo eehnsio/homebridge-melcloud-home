@@ -1,6 +1,7 @@
 export interface MELCloudConfig {
     refreshToken: string;
     debug?: boolean;
+    onTokenRefresh?: (newRefreshToken: string) => void;
 }
 export interface DeviceSetting {
     name: string;
