@@ -19,10 +19,39 @@ npm run watch
 
 # Test API connectivity
 npm test
-
-# Publish (requires provenance)
-npm run publish:safe
 ```
+
+## Release Process
+
+**Releases are automated via GitHub Actions** - DO NOT manually run `npm publish`.
+
+### Publishing a New Release
+
+1. **Update version**: Edit `package.json` version field (e.g., `1.1.6` → `1.1.7`)
+2. **Update CHANGELOG.md**: Add new version entry with changes
+3. **Build**: Run `npm run build` to compile TypeScript
+4. **Commit changes**: `git add package.json CHANGELOG.md && git commit -m "Release vX.X.X"`
+5. **Create tag**: `git tag -a vX.X.X -m "Release vX.X.X - Description"`
+6. **Push**: `git push && git push --tags`
+
+### Automated Workflow (`.github/workflows/publish.yml`)
+
+When a tag starting with `v` is pushed:
+1. **Triggers automatically** on tag push (e.g., `v1.1.7`)
+2. **Builds the package** (`npm ci && npm run build`)
+3. **Publishes to npm** with provenance (`npm publish --provenance --access public`)
+   - Stable releases (no beta/alpha/rc): Published as `latest` tag
+   - Pre-releases (contains beta/alpha/rc): Published as `beta` tag
+4. **Creates GitHub Release** with auto-generated changelog from git commits
+5. **Uses npm token** from repository secrets (`NPM_TOKEN`)
+
+### Important Notes
+
+- **Never run `npm publish` manually** - The GitHub Action handles this
+- **Always create annotated tags** (`git tag -a`) not lightweight tags
+- **Tag format must be `vX.X.X`** (e.g., `v1.1.7`, `v2.0.0-beta.1`)
+- **Provenance is automatic** - GitHub Actions provides attestation for supply chain security
+- The workflow has `id-token: write` permission for npm provenance
 
 ## Architecture Overview
 
