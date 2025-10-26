@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.7] - 2025-10-26
+
+### Fixed
+- **HomeKit settings panel error** - Fixed "settings couldn't be set" error when settings panel is open during periodic refresh
+  - `updateCharacteristics()` now only updates characteristics when values actually change
+  - Prevents unsolicited HomeKit updates that are interpreted as errors when settings panel is active
+  - Previously updated all characteristics every 30 seconds regardless of value changes
+
 ## [1.1.6] - 2025-10-25
 
 ### Fixed
@@ -233,6 +241,7 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.1.7]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.7
 [1.1.6]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.6
 [1.1.5]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.5
 [1.1.4]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.4
