@@ -472,16 +472,21 @@ class MELCloudAccessory {
     updateCharacteristics() {
         const settings = this.getSettings();
         this.platform.debugLog(`[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`);
-        // Update all characteristics with current values
-        this.service.updateCharacteristic(this.platform.Characteristic.Active, settings.Power === 'True' ? 1 : 0);
+        // Only update characteristics if values have actually changed
+        // This prevents HomeKit from showing errors when settings panel is open
+        const activeValue = settings.Power === 'True' ? 1 : 0;
+        const cachedActive = this.service.getCharacteristic(this.platform.Characteristic.Active).value;
+        if (activeValue !== cachedActive) {
+            this.service.updateCharacteristic(this.platform.Characteristic.Active, activeValue);
+        }
         const currentTemp = parseFloat(settings.RoomTemperature);
         const cachedTemp = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
         if (currentTemp !== cachedTemp) {
             this.platform.log.info(`[${this.device.givenDisplayName}] Temperature update: ${cachedTemp}°C -> ${currentTemp}°C (from MELCloud: ${settings.RoomTemperature})`);
+            // Use updateValue to force HomeKit to recognize the change
+            this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+                .updateValue(currentTemp);
         }
-        // Use updateValue to force HomeKit to recognize the change
-        this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-            .updateValue(currentTemp);
         // Validate cooling threshold temperature
         const setTemp = parseFloat(settings.SetTemperature);
         const defaultTemp = 20; // Default to 20°C if temperature is invalid
@@ -502,10 +507,16 @@ class MELCloudAccessory {
         }
         // Clamp to both device capabilities AND HomeKit minimums
         const coolingTemp = Math.max(Math.max(this.device.capabilities.minTempCoolDry, HOMEKIT_MIN_COOLING), Math.min(this.device.capabilities.maxTempCoolDry, this.coolingThreshold));
-        this.service.updateCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature, coolingTemp);
+        const cachedCoolingTemp = this.service.getCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature).value;
+        if (coolingTemp !== cachedCoolingTemp) {
+            this.service.updateCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature, coolingTemp);
+        }
         // Validate heating threshold temperature
         const heatingTemp = Math.max(Math.max(this.device.capabilities.minTempHeat, HOMEKIT_MIN_HEATING), Math.min(this.device.capabilities.maxTempHeat, this.heatingThreshold));
-        this.service.updateCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature, heatingTemp);
+        const cachedHeatingTemp = this.service.getCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature).value;
+        if (heatingTemp !== cachedHeatingTemp) {
+            this.service.updateCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature, heatingTemp);
+        }
         if (this.device.capabilities.numberOfFanSpeeds > 0) {
             // Convert API values to numeric speed (handle both text and numeric formats)
             const reverseSpeedMap = {
@@ -513,7 +524,10 @@ class MELCloudAccessory {
                 '0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5,
             };
             const speed = reverseSpeedMap[settings.SetFanSpeed] ?? 0;
-            this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, speed);
+            const cachedSpeed = this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed).value;
+            if (speed !== cachedSpeed) {
+                this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, speed);
+            }
         }
     }
     /**
