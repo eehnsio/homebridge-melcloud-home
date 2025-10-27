@@ -6,6 +6,7 @@ export class MELCloudAccessory {
   private service: Service;
   private device: AirToAirUnit;
   private refreshDebounceTimer?: NodeJS.Timeout;
+  private pendingCommandRefresh?: NodeJS.Timeout; // Track pending command verification refresh
   private pendingMode?: string; // Store mode changes requested while device is off
 
   // Track heating and cooling thresholds separately for AUTO mode
@@ -560,6 +561,13 @@ export class MELCloudAccessory {
 
   // Update characteristics from device state
   private updateCharacteristics() {
+    // Skip updates if we're waiting for a command verification refresh
+    // This prevents periodic refreshes from overwriting optimistic updates before our own refresh executes
+    if (this.pendingCommandRefresh) {
+      this.platform.debugLog(`[${this.device.givenDisplayName}] Skipping updateCharacteristics - command verification refresh pending`);
+      return;
+    }
+
     const settings = this.getSettings();
     this.platform.debugLog(`[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`);
 
@@ -660,11 +668,27 @@ export class MELCloudAccessory {
       clearTimeout(this.refreshDebounceTimer);
     }
 
+    // Set flag to block periodic refreshes from overwriting optimistic updates
+    // This flag will be cleared when the debounced refresh executes or after 5s timeout
+    if (this.pendingCommandRefresh) {
+      clearTimeout(this.pendingCommandRefresh);
+    }
+    this.pendingCommandRefresh = setTimeout(() => {
+      this.platform.debugLog(`[${this.device.givenDisplayName}] Pending command refresh timeout expired`);
+      this.pendingCommandRefresh = undefined;
+    }, 5000); // Safety timeout in case refresh fails
+
     // Schedule new refresh after delay
     this.refreshDebounceTimer = setTimeout(() => {
       this.platform.debugLog(`[${this.device.givenDisplayName}] Debounced refresh executing`);
       this.platform.refreshDevice(this.device.id);
       this.refreshDebounceTimer = undefined;
+
+      // Clear the pending command flag when our verification refresh completes
+      if (this.pendingCommandRefresh) {
+        clearTimeout(this.pendingCommandRefresh);
+        this.pendingCommandRefresh = undefined;
+      }
     }, delay);
   }
 

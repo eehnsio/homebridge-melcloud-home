@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.8] - 2025-10-27
+
+### Fixed
+- **Power state sync issue** - Fixed HomeKit showing device as "off" immediately after turning it on (Issue #4 regression)
+  - Race condition: periodic API refresh could overwrite optimistic UI updates before command completed
+  - Flow: User turns on → UI updates to "on" → periodic refresh happens → API still shows "off" → UI reverts to "off" → 2s later shows "on" again
+  - Now blocks periodic refreshes during the 2-second command verification window
+  - Uses `pendingCommandRefresh` flag with 5-second safety timeout to prevent stuck states
+  - Optimistic updates remain responsive while preventing premature overwrites
+  - This regression was introduced in v1.1.7 by the HomeKit settings panel error fix
+
 ## [1.1.7] - 2025-10-26
 
 ### Fixed

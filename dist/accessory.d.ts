@@ -7,6 +7,7 @@ export declare class MELCloudAccessory {
     private service;
     private device;
     private refreshDebounceTimer?;
+    private pendingCommandRefresh?;
     private pendingMode?;
     private heatingThreshold?;
     private coolingThreshold?;
