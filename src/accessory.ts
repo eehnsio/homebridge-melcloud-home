@@ -4,6 +4,7 @@ import { AirToAirUnit, MELCloudAPI } from './melcloud-api';
 
 export class MELCloudAccessory {
   private service: Service;
+  private temperatureSensor?: Service;
   private device: AirToAirUnit;
   private refreshDebounceTimer?: NodeJS.Timeout;
   private pendingCommandRefresh?: NodeJS.Timeout; // Track pending command verification refresh
@@ -96,6 +97,30 @@ export class MELCloudAccessory {
         .onSet(this.setRotationSpeed.bind(this));
     }
 
+    // Add separate TemperatureSensor service for HomeKit automations (if enabled in config)
+    // HomeKit doesn't allow automations based on CurrentTemperature from HeaterCooler service,
+    // but it does allow automations from dedicated TemperatureSensor services
+    const exposeTemperatureSensor = this.platform.config.exposeTemperatureSensor !== false; // Default true
+
+    if (exposeTemperatureSensor) {
+      this.temperatureSensor = this.accessory.getService(this.platform.Service.TemperatureSensor) ||
+        this.accessory.addService(this.platform.Service.TemperatureSensor);
+
+      this.temperatureSensor.setCharacteristic(
+        this.platform.Characteristic.Name,
+        `${this.device.givenDisplayName} Temperature`,
+      );
+
+      this.temperatureSensor.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+        .onGet(this.getCurrentTemperature.bind(this));
+    } else {
+      // Remove temperature sensor if it exists but is now disabled
+      const existingSensor = this.accessory.getService(this.platform.Service.TemperatureSensor);
+      if (existingSensor) {
+        this.accessory.removeService(existingSensor);
+      }
+    }
+
     // Update device state from cache (do this AFTER setting props to avoid validation warnings)
     setImmediate(() => this.updateCharacteristics());
   }
@@ -114,13 +139,8 @@ export class MELCloudAccessory {
 
   async setActive(value: CharacteristicValue) {
     const power = value === this.platform.Characteristic.Active.ACTIVE;
-
-    // Refresh device state before checking to avoid acting on stale cached data
     this.platform.debugLog(`[${this.device.givenDisplayName}] Set Active requested: ${power}`);
-    this.platform.debugLog(`[${this.device.givenDisplayName}] Refreshing device state before proceeding...`);
-    await this.platform.refreshDevice(this.device.id);
 
-    // Get fresh settings after refresh
     const settings = this.getSettings();
 
     // Convert fan speed to number for logging (handle both text and numeric formats)
@@ -130,8 +150,6 @@ export class MELCloudAccessory {
       '0': 1, '1': 2, '2': 3, '3': 4, '4': 5, '5': 6,
     };
     const currentFanSpeed = reverseSpeedMap[settings.SetFanSpeed] ?? 1;
-
-    this.platform.debugLog(`[${this.device.givenDisplayName}] Current state after refresh: Power='${settings.Power}', Fan=${currentFanSpeed}`);
 
     // Don't send command if the state is already correct
     if ((power && settings.Power === 'True') || (!power && settings.Power === 'False')) {
@@ -590,6 +608,12 @@ export class MELCloudAccessory {
       // Use updateValue to force HomeKit to recognize the change
       this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
         .updateValue(currentTemp);
+
+      // Also update the separate temperature sensor service for automations (if enabled)
+      if (this.temperatureSensor) {
+        this.temperatureSensor.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+          .updateValue(currentTemp);
+      }
     }
 
     // Validate cooling threshold temperature

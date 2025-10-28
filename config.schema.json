@@ -36,6 +36,12 @@
         "type": "boolean",
         "default": false,
         "description": "Enable debug logging"
+      },
+      "exposeTemperatureSensor": {
+        "title": "Expose Temperature Sensor",
+        "type": "boolean",
+        "default": true,
+        "description": "Expose a separate temperature sensor for each AC unit. This allows HomeKit automations to trigger based on temperature (HomeKit doesn't allow automations from the built-in temperature on HeaterCooler accessories). You can hide the extra sensor tile in the Home app if desired."
       }
     }
   }

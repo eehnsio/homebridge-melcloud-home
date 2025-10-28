@@ -5,6 +5,7 @@ export declare class MELCloudAccessory {
     private readonly platform;
     private readonly accessory;
     private service;
+    private temperatureSensor?;
     private device;
     private refreshDebounceTimer?;
     private pendingCommandRefresh?;

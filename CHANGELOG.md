@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-10-28
+
+### Added
+- **Temperature sensor for HomeKit automations** - Each AC unit now exposes a separate TemperatureSensor service
+  - Enables creating HomeKit automations based on AC unit temperature readings
+  - HomeKit doesn't allow automations from CurrentTemperature on HeaterCooler services, only from dedicated TemperatureSensor services
+  - Configurable via new `exposeTemperatureSensor` setting (default: enabled)
+  - Temperature sensor updates in real-time with configured refresh interval
+  - Sensor tiles are hidden by default in Home app but can be shown if desired
+
+### Fixed
+- **Instant power control** - Removed unnecessary pre-refresh delay when turning devices on/off
+  - Pre-refresh was added in v1.1.1 to "avoid acting on stale cached data" but caused ~1 second delay
+  - Commands are now sent immediately for responsive user experience
+  - Post-command verification refresh (2s debounced) still ensures success
+
 ## [1.1.8] - 2025-10-27
 
 ### Fixed
