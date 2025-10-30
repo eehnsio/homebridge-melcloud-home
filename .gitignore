@@ -5,6 +5,7 @@ node_modules/
 
 # Claude Code configuration
 .claude/
+CLAUDE.md
 
 # Don't commit real credentials
 *credentials*
@@ -25,5 +26,3 @@ test-*.js
 # Config
 config/
 config.json
-docs/
-.npmignore

@@ -66,8 +66,6 @@ npm install -g homebridge-melcloud-home
 
 Your devices will appear in HomeKit automatically!
 
-See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed instructions with screenshots.
-
 ### Configuration
 
 All settings can be configured through the custom UI - click the Settings (⚙️) button on the plugin.
