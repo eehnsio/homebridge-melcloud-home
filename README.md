@@ -9,7 +9,7 @@ Homebridge plugin for Mitsubishi Electric Air Conditioners using the **MELCloud 
 
 I needed a way to control my Mitsubishi AC units through HomeKit, but the existing MELCloud plugins only worked with the old MELCloud platform (app.melcloud.com). My units use the newer MELCloud Home platform (melcloudhome.com), which has a completely different API.
 
-So I built this plugin from scratch with the help of [Claude Code](https://claude.com/claude-code). It's been working well for my setup, but it's still relatively new - expect some rough edges and please report any issues you find!
+So I created this plugin with the help of [Claude Code](https://claude.com/claude-code).
 
 ## Support This Project
 
@@ -30,6 +30,7 @@ Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridg
 - Real-time temperature monitoring
 - Automatic device discovery
 - **Long-lived sessions** - authenticate once, automatic token refresh keeps you connected
+- **Lightweight & always responsive** - no browser dependencies or periodic re-authentication delays
 - Homebridge v1 & v2 compatible
 
 ## Important: MELCloud vs MELCloud Home
@@ -74,24 +75,6 @@ All settings can be configured through the custom UI - click the Settings (âš™ï¸
 |---------|-------------|---------|
 | `refreshInterval` | How often to check device status (seconds). With 30-second polling, changes from the MELCloud app or remote control are picked up quickly. Configurable from 10-3600 seconds. | 30 |
 | `debug` | Enable detailed logging for troubleshooting. Shows all refresh data, API calls, and state changes without requiring Homebridge debug mode. | false |
-
-### Troubleshooting
-
-Enable debug mode in plugin settings to see detailed logs. Common issues:
-
-- **Temperature threshold warnings on startup**: This is normal! HomeKit validates initial device values and warns if they're outside acceptable ranges. The plugin automatically corrects these values.
-- **Devices not appearing**: Verify you can log into melcloudhome.com with the same credentials
-- **Login failed**: Make sure you're using MELCloud Home (not the old MELCloud)
-- Still stuck? [Open an issue](https://github.com/eehnsio/homebridge-melcloud-home/issues)
-
-
-## Development
-
-```bash
-npm install
-npm run build
-npm test
-```
 
 ## Changelog
 
