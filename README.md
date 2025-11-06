@@ -13,13 +13,11 @@ So I created this plugin with the help of [Claude Code](https://claude.com/claud
 
 ## Support This Project
 
-If this plugin saves you from manually adjusting your AC units, consider buying me a coffee!
-
 ☕ [Buy Me a Coffee](https://buymeacoffee.com/eehnsio)
 
 ## Credits
 
-Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridge-melcloud-control) for inspiration on the Homebridge integration patterns, even though the APIs are completely different.
+Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridge-melcloud-control) for inspiration on the Homebridge integration patterns.
 
 ## Features
 
