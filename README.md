@@ -1,7 +1,7 @@
 # Homebridge MELCloud Home
 
-[![npm version](https://badgen.net/npm/v/homebridge-melcloud-home)](https://www.npmjs.com/package/homebridge-melcloud-home)
-[![npm downloads](https://badgen.net/npm/dt/homebridge-melcloud-home)](https://www.npmjs.com/package/homebridge-melcloud-home)
+[![npm version](https://img.shields.io/npm/v/homebridge-melcloud-home.svg)](https://www.npmjs.com/package/homebridge-melcloud-home)
+[![npm downloads](https://img.shields.io/npm/dt/homebridge-melcloud-home.svg)](https://www.npmjs.com/package/homebridge-melcloud-home)
 
 Homebridge plugin for Mitsubishi Electric Air Conditioners using the **MELCloud Home** platform (melcloudhome.com).
 
