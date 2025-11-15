@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-11-15
+
+### Added
+- **Simplified authentication setup** - Direct email/password login now the primary method
+  - Single-step authentication: enter credentials, get token automatically
+  - Works in all browsers (Safari, Chrome, Firefox, Edge)
+  - No more popup windows, developer console tricks, or URL copying needed
+  - Server-side OAuth flow handles all the complexity
+
+### Changed
+- **Simplified custom UI** - Removed unnecessary authentication methods
+  - Removed Method 2 (Browser OAuth popup) - no longer needed
+  - Removed custom CSS styling - now uses Homebridge's default theme for better integration
+  - Cleaner 3-step process: Get Token → Save Token → Configure Settings
+- **Code simplification** - Reduced OAuth implementation complexity by 50%
+  - Simplified `curlRequest()` function from 550 lines to 280 lines
+  - Removed complex form_post handling that wasn't needed
+  - More maintainable and easier to debug
+
+### Removed
+- **Deprecated authentication methods**
+  - Removed manual cookie handling (was deprecated in favor of OAuth)
+  - Removed browser popup OAuth method (replaced by direct login)
+
+### Fixed
+- Improved token preservation when changing plugin settings
+  - Debug mode, refresh interval, and temperature sensor settings can be changed without affecting saved token
+
+## [1.2.1] - 2025-11-15
+
+### Fixed
+- **Safari OAuth compatibility** - Fixed OAuth setup flow not working in Safari browser (Issue #6)
+  - Safari doesn't display console errors with `melcloudhome://` redirect URL like Chrome/Firefox
+  - Added browser detection to show Safari-specific instructions
+  - Backend now accepts both URL formats:
+    - `melcloudhome://?code=xxx` (Chrome/Firefox from Developer Console)
+    - `https://auth.melcloudhome.com/Redirect?RedirectUri=...` (Safari from address bar)
+  - Users can now copy URL from Safari address bar OR view page source to find redirect URL
+  - Enhanced error messages with helpful troubleshooting tips
+  - Alternative suggestion: Use Chrome/Firefox for one-time setup if Safari proves difficult
+
+### Changed
+- Improved OAuth setup instructions with browser-specific guidance
+- Better input validation and error messages for callback URL processing
+- Enhanced placeholder text to clarify both URL formats are accepted
+
 ## [1.2.0] - 2025-10-28
 
 ### Added
@@ -268,6 +314,9 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.2.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.2.1
+[1.2.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.2.0
+[1.1.8]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.8
 [1.1.7]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.7
 [1.1.6]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.6
 [1.1.5]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.5

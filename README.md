@@ -39,13 +39,15 @@ Not sure which one you have? Check which website you log into - if it's melcloud
 
 ## Installation
 
-### Via Homebridge UI (Easiest)
+### Via Homebridge UI
 
 1. Search for `homebridge-melcloud-home` in the Homebridge plugins tab
 2. Click Install
 3. Click Settings (gear icon) after installation
-4. Follow the instructions to copy your cookies from the browser
-5. Restart Homebridge
+4. Enter your MELCloud email and password in Step 1
+5. Click "Login and Get Token" - your token will be obtained automatically
+6. Click "Save Token" in Step 2
+7. Restart Homebridge
 
 ### Via npm
 
@@ -56,14 +58,21 @@ npm install -g homebridge-melcloud-home
 ## Setup
 
 1. Install the plugin via Homebridge UI
-2. Click the **Settings** button
-3. Click **"Open MELCloud Login"** and login with your credentials
-4. Copy the callback URL from your browser console
-5. Paste it back in the settings and click "Get Token"
-6. Click "Save Token to Config"
-7. Restart Homebridge
+2. Click the **Settings** button (⚙️)
+3. **Step 1:** Enter your MELCloud email and password, then click "Login and Get Token"
+4. **Step 2:** Your token will appear automatically - click "Save Token"
+5. **Step 3:** Configure settings (refresh interval, debug mode, etc.) - they save automatically
+6. Restart Homebridge
 
 Your devices will appear in HomeKit automatically!
+
+### Authentication
+
+The plugin uses OAuth for secure authentication:
+- Your credentials are sent directly to MELCloud's servers (never stored by the plugin)
+- A refresh token is saved in your Homebridge config
+- The token is automatically refreshed when needed (no re-authentication required)
+- Works in all browsers (Safari, Chrome, Firefox, Edge)
 
 ### Configuration
 
@@ -73,6 +82,7 @@ All settings can be configured through the custom UI - click the Settings (⚙�
 |---------|-------------|---------|
 | `refreshInterval` | How often to check device status (seconds). With 30-second polling, changes from the MELCloud app or remote control are picked up quickly. Configurable from 10-3600 seconds. | 30 |
 | `debug` | Enable detailed logging for troubleshooting. Shows all refresh data, API calls, and state changes without requiring Homebridge debug mode. | false |
+| `exposeTemperatureSensor` | Add a separate temperature sensor for each AC unit that can be used in HomeKit automations. | true |
 
 ## Changelog
 
