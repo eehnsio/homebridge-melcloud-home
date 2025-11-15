@@ -8,75 +8,74 @@
 <body>
     <div class="container-fluid p-4">
         <div id="app">
-            <h3 class="mb-4">MELCloud Home - Authentication Setup</h3>
+            <h3 class="mb-3">MELCloud Home - Authentication Setup</h3>
             <p class="text-muted mb-4">
-                Use this page to authenticate with MELCloud and get your refresh token.
-                After saving the token, configure plugin settings (refresh interval, debug mode) using the standard form below, then click <strong>SAVE</strong> at the bottom of the page.
+                Enter your MELCloud credentials to get your authentication token. Settings are saved automatically.
             </p>
 
             <!-- Step 1: Get Token -->
-            <div class="card mb-3">
+            <div class="card">
                 <div class="card-header">
-                    <strong>Step 1: Get Your Token</strong>
+                    Step 1: Get Your Token
                 </div>
                 <div class="card-body">
-                    <button type="button" id="login-browser-button" class="btn btn-primary w-100 mb-2">
-                        Open MELCloud Login
-                    </button>
-                    <small class="text-muted d-block mb-2">
-                        This will open MELCloud login. After logging in, the browser will show an error - this is normal!
-                    </small>
-
-                    <div id="oauth-instructions" style="display: none;" class="alert alert-info mt-3">
-                        <strong>Copy the callback URL:</strong><br>
-                        1. Press F12 to open browser console<br>
-                        2. Look for red error: <code>Failed to launch 'melcloudhome://?code=...'</code><br>
-                        3. Copy the full <code>melcloudhome://</code> URL
-                    </div>
-
-                    <div id="callback-section" style="display: none;" class="mt-3">
+                    <div class="mb-3">
+                        <label for="email-input" class="form-label">MELCloud Email</label>
                         <input
-                            type="text"
-                            class="form-control font-monospace mb-2"
-                            id="callback-url"
-                            placeholder="Paste melcloudhome://... URL here"
+                            type="email"
+                            class="form-control"
+                            id="email-input"
+                            placeholder="your.email@example.com"
                         >
-                        <button type="button" id="process-callback-button" class="btn btn-success w-100">
-                            Get Token from URL
-                        </button>
                     </div>
-                    <div id="oauth-result" class="mt-3"></div>
+                    <div class="mb-3">
+                        <label for="password-input" class="form-label">Password</label>
+                        <input
+                            type="password"
+                            class="form-control"
+                            id="password-input"
+                            placeholder="Your MELCloud password"
+                        >
+                    </div>
+                    <button type="button" id="direct-login-button" class="btn btn-success w-100 mb-2">
+                        Login and Get Token
+                    </button>
+                    <div id="direct-login-result"></div>
+                    <small class="text-muted d-block mt-2">
+                        Your credentials are sent directly to MELCloud's servers and are not stored.
+                    </small>
                 </div>
             </div>
 
             <!-- Step 2: Save Token -->
-            <div class="card mb-3">
+            <div class="card">
                 <div class="card-header">
-                    <strong>Step 2: Save Authentication Token</strong>
+                    Step 2: Save Authentication Token
                 </div>
                 <div class="card-body">
+                    <label for="token-input" class="form-label">Refresh Token</label>
                     <textarea
-                        class="form-control font-monospace mb-2"
+                        class="form-control font-monospace mb-3"
                         id="token-input"
                         rows="3"
-                        placeholder="Paste your refresh token here..."
+                        placeholder="Token will appear here after login, or paste manually..."
                     ></textarea>
-                    <button type="button" id="save-token-button" class="btn btn-primary btn-lg w-100">
+                    <button type="button" id="save-token-button" class="btn btn-primary w-100">
                         Save Token
                     </button>
-                    <div id="save-result" class="mt-3"></div>
+                    <div id="save-result"></div>
                 </div>
             </div>
 
             <!-- Step 3: Plugin Configuration -->
             <div class="card">
                 <div class="card-header">
-                    <strong>Step 3: Plugin Settings</strong>
+                    Step 3: Plugin Settings
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
                         <label for="refresh-interval" class="form-label">
-                            <strong>Refresh Interval (seconds)</strong>
+                            Refresh Interval (seconds)
                         </label>
                         <input
                             type="number"
@@ -87,7 +86,7 @@
                             value="30"
                         >
                         <small class="text-muted">
-                            How often to check MELCloud for device updates. Default: 30 seconds.
+                            How often to check MELCloud for updates. Default: 30 seconds.
                         </small>
                     </div>
 
@@ -98,7 +97,7 @@
                             id="debug-mode"
                         >
                         <label class="form-check-label" for="debug-mode">
-                            <strong>Debug Mode</strong>
+                            Debug Mode
                         </label>
                         <div>
                             <small class="text-muted">
@@ -115,18 +114,17 @@
                             checked
                         >
                         <label class="form-check-label" for="expose-temperature-sensor">
-                            <strong>Expose Temperature Sensor</strong>
+                            Expose Temperature Sensor
                         </label>
                         <div>
                             <small class="text-muted">
-                                Add a separate temperature sensor for each AC unit that can be used in HomeKit automations.
+                                Add a separate temperature sensor for each AC unit
                             </small>
                         </div>
                     </div>
 
                     <div class="alert alert-info">
-                        <strong>Note:</strong> Settings are saved automatically when you change them.
-                        Restart Homebridge for changes to take effect.
+                        <strong>Note:</strong> Settings are saved automatically. Restart Homebridge for changes to take effect.
                     </div>
                 </div>
             </div>
@@ -134,271 +132,130 @@
     </div>
 
     <script>
-        let homebridge;
-        let oauthState, oauthVerifier;
+        // Initialize
+        window.addEventListener('load', async () => {
+            console.log('[MELCloudHome UI] Ready');
 
-        // Step 1: Open MELCloud Login
-        document.getElementById('login-browser-button').addEventListener('click', async () => {
-            // Generate OAuth params
-            oauthState = generateRandomString(32);
-            oauthVerifier = generateRandomString(64);
-            const codeChallenge = await generateCodeChallenge(oauthVerifier);
+            // Load current settings
+            await loadSettings();
 
-            // Build OAuth URL
-            const authUrl = new URL('https://auth.melcloudhome.com/connect/authorize');
-            authUrl.searchParams.set('client_id', 'homemobile');
-            authUrl.searchParams.set('redirect_uri', 'melcloudhome://');
-            authUrl.searchParams.set('response_type', 'code');
-            authUrl.searchParams.set('scope', 'openid profile email offline_access IdentityServerApi');
-            authUrl.searchParams.set('state', oauthState);
-            authUrl.searchParams.set('code_challenge', codeChallenge);
-            authUrl.searchParams.set('code_challenge_method', 'S256');
-            authUrl.searchParams.set('prompt', 'login');
+            // Step 1: Direct Login event listener
+            document.getElementById('direct-login-button').addEventListener('click', async () => {
+                const button = document.getElementById('direct-login-button');
+                const resultDiv = document.getElementById('direct-login-result');
+                const email = document.getElementById('email-input').value.trim();
+                const password = document.getElementById('password-input').value.trim();
 
-            // Open login window
-            window.open(authUrl.toString(), 'melcloud_' + Date.now(), 'width=600,height=800');
-
-            // Show instructions
-            document.getElementById('oauth-instructions').style.display = 'block';
-            document.getElementById('callback-section').style.display = 'block';
-        });
-
-        // Process callback URL
-        document.getElementById('process-callback-button').addEventListener('click', async () => {
-            const callbackUrl = document.getElementById('callback-url').value.trim();
-            const resultDiv = document.getElementById('oauth-result');
-
-            if (!callbackUrl || !callbackUrl.startsWith('melcloudhome://')) {
-                resultDiv.innerHTML = '<div class="alert alert-danger">Please enter a valid melcloudhome:// URL</div>';
-                return;
-            }
-
-            resultDiv.innerHTML = '<div class="alert alert-info">Getting token...</div>';
-
-            try {
-                const response = await homebridge.request('/process-oauth-callback', {
-                    callbackUrl,
-                    verifier: oauthVerifier,
-                    expectedState: oauthState
-                });
-
-                if (response.success && response.refreshToken) {
-                    // Auto-fill the token in Step 2
-                    document.getElementById('token-input').value = response.refreshToken;
-                    resultDiv.innerHTML = '<div class="alert alert-success">✓ Token obtained! See Step 2 below.</div>';
-                    // Scroll to Step 2
-                    document.getElementById('token-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
-                } else {
-                    throw new Error(response.error || 'Failed to get token');
-                }
-            } catch (error) {
-                console.error('[UI] OAuth error:', error);
-                resultDiv.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${error.message}</div>`;
-            }
-        });
-
-        // Step 2: Save token
-        document.getElementById('save-token-button').addEventListener('click', async () => {
-            const button = document.getElementById('save-token-button');
-            const resultDiv = document.getElementById('save-result');
-            const token = document.getElementById('token-input').value.trim();
-
-            if (!token) {
-                resultDiv.innerHTML = '<div class="alert alert-danger">Please enter a token</div>';
-                return;
-            }
-
-            button.disabled = true;
-            button.innerHTML = 'Saving...';
-            resultDiv.innerHTML = '<div class="alert alert-info">Saving to config...</div>';
-
-            try {
-                console.log('[UI] Saving token, length:', token.length);
-
-                // Get current plugin config
-                const pluginConfig = await homebridge.getPluginConfig();
-                console.log('[UI] Current config:', pluginConfig);
-
-                // Create or update platform config
-                const platformConfig = pluginConfig && pluginConfig.length > 0
-                    ? { ...pluginConfig[0], refreshToken: token }
-                    : {
-                        platform: 'MELCloudHome',
-                        name: 'MELCloud Home',
-                        refreshToken: token,
-                        refreshInterval: 30,
-                        debug: false
-                    };
-
-                console.log('[UI] Updating with config:', platformConfig);
-
-                // Update and save using Homebridge client-side API
-                await homebridge.updatePluginConfig([platformConfig]);
-                await homebridge.savePluginConfig();
-
-                console.log('[UI] ✓ Config saved successfully');
-
-                resultDiv.innerHTML = `
-                    <div class="alert alert-success">
-                        <strong>✓ Saved!</strong><br>
-                        Token saved to config.json<br><br>
-                        <strong>Next:</strong> Manually restart Homebridge
-                    </div>
-                `;
-                document.getElementById('token-input').value = '';
-
-            } catch (error) {
-                console.error('[UI] Save error:', error);
-                resultDiv.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${error.message}</div>`;
-            }
-
-            button.disabled = false;
-            button.innerHTML = 'Save Token to Config';
-        });
-
-        // Helper functions
-        function generateRandomString(length) {
-            const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-            const randomValues = new Uint8Array(length);
-            crypto.getRandomValues(randomValues);
-            return Array.from(randomValues).map(x => charset[x % charset.length]).join('');
-        }
-
-        async function generateCodeChallenge(verifier) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(verifier);
-
-            // Check if crypto.subtle is available (HTTPS required)
-            if (crypto.subtle && crypto.subtle.digest) {
-                const hash = await crypto.subtle.digest('SHA-256', data);
-                const base64 = btoa(String.fromCharCode(...new Uint8Array(hash)));
-                return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-            } else {
-                // Fallback: use SHA-256 implementation that works over HTTP
-                // This uses a pure JS implementation
-                const hash = await sha256(verifier);
-                return hash.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-            }
-        }
-
-        // Fallback SHA-256 implementation for HTTP contexts
-        async function sha256(str) {
-            // Simple SHA-256 implementation using SubtleCrypto if available,
-            // otherwise use a pure JS implementation
-            const buffer = new TextEncoder().encode(str);
-
-            // Pure JS SHA-256 implementation (simplified for PKCE)
-            // Based on https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest
-            function sha256Pure(buffer) {
-                const K = [
-                    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-                    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-                    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-                    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-                    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-                    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-                    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-                    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-                ];
-
-                function rightRotate(value, amount) {
-                    return (value >>> amount) | (value << (32 - amount));
+                if (!email || !password) {
+                    resultDiv.innerHTML = '<div class="alert alert-danger">Please enter both email and password</div>';
+                    return;
                 }
 
-                const blocks = [];
-                const len = buffer.length * 8;
+                button.disabled = true;
+                button.innerHTML = 'Logging in...';
+                resultDiv.innerHTML = '<div class="alert alert-info">Connecting to MELCloud...</div>';
 
-                // Padding
-                const paddedLength = Math.ceil((len + 65) / 512) * 512;
-                const paddedBuffer = new Uint8Array(paddedLength / 8);
-                paddedBuffer.set(buffer);
-                paddedBuffer[buffer.length] = 0x80;
+                try {
+                    const response = await window.homebridge.request('/login-with-credentials', {
+                        email,
+                        password
+                    });
 
-                // Length in bits
-                const view = new DataView(paddedBuffer.buffer);
-                view.setUint32(paddedBuffer.length - 4, len, false);
-
-                // Process blocks
-                for (let i = 0; i < paddedBuffer.length; i += 64) {
-                    blocks.push(paddedBuffer.slice(i, i + 64));
+                    if (response.success && response.refreshToken) {
+                        // Auto-fill the token in Step 2
+                        document.getElementById('token-input').value = response.refreshToken;
+                        resultDiv.innerHTML = '<div class="alert alert-success">✓ Login successful! Token obtained. See Step 2 below.</div>';
+                        // Clear password field for security
+                        document.getElementById('password-input').value = '';
+                        // Scroll to Step 2
+                        document.getElementById('token-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    } else {
+                        throw new Error(response.error || 'Login failed');
+                    }
+                } catch (error) {
+                    console.error('[UI] Direct login error:', error);
+                    resultDiv.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${error.message}<br><small>Please check your email and password.</small></div>`;
                 }
 
-                let H = [
-                    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-                    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
-                ];
+                button.disabled = false;
+                button.innerHTML = 'Login and Get Token';
+            });
 
-                blocks.forEach(block => {
-                    const W = new Array(64);
-                    const view = new DataView(block.buffer, block.byteOffset);
+            // Step 2: Save token
+            document.getElementById('save-token-button').addEventListener('click', async () => {
+                const button = document.getElementById('save-token-button');
+                const resultDiv = document.getElementById('save-result');
+                const token = document.getElementById('token-input').value.trim();
 
-                    for (let t = 0; t < 16; t++) {
-                        W[t] = view.getUint32(t * 4, false);
-                    }
+                if (!token) {
+                    resultDiv.innerHTML = '<div class="alert alert-danger">Please enter a token</div>';
+                    return;
+                }
 
-                    for (let t = 16; t < 64; t++) {
-                        const s0 = rightRotate(W[t - 15], 7) ^ rightRotate(W[t - 15], 18) ^ (W[t - 15] >>> 3);
-                        const s1 = rightRotate(W[t - 2], 17) ^ rightRotate(W[t - 2], 19) ^ (W[t - 2] >>> 10);
-                        W[t] = (W[t - 16] + s0 + W[t - 7] + s1) >>> 0;
-                    }
+                button.disabled = true;
+                button.innerHTML = 'Saving...';
+                resultDiv.innerHTML = '<div class="alert alert-info">Saving to config...</div>';
 
-                    let [a, b, c, d, e, f, g, h] = H;
+                try {
+                    // Get current plugin config
+                    const pluginConfig = await window.homebridge.getPluginConfig();
 
-                    for (let t = 0; t < 64; t++) {
-                        const S1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
-                        const ch = (e & f) ^ (~e & g);
-                        const temp1 = (h + S1 + ch + K[t] + W[t]) >>> 0;
-                        const S0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
-                        const maj = (a & b) ^ (a & c) ^ (b & c);
-                        const temp2 = (S0 + maj) >>> 0;
+                    // Create or update platform config
+                    const platformConfig = pluginConfig && pluginConfig.length > 0
+                        ? { ...pluginConfig[0], refreshToken: token }
+                        : {
+                            platform: 'MELCloudHome',
+                            name: 'MELCloud Home',
+                            refreshToken: token,
+                            refreshInterval: 30,
+                            debug: false,
+                            exposeTemperatureSensor: true
+                        };
 
-                        h = g;
-                        g = f;
-                        f = e;
-                        e = (d + temp1) >>> 0;
-                        d = c;
-                        c = b;
-                        b = a;
-                        a = (temp1 + temp2) >>> 0;
-                    }
+                    // Update and save using Homebridge client-side API
+                    await window.homebridge.updatePluginConfig([platformConfig]);
+                    await window.homebridge.savePluginConfig();
 
-                    H = [
-                        (H[0] + a) >>> 0, (H[1] + b) >>> 0, (H[2] + c) >>> 0, (H[3] + d) >>> 0,
-                        (H[4] + e) >>> 0, (H[5] + f) >>> 0, (H[6] + g) >>> 0, (H[7] + h) >>> 0
-                    ];
-                });
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>✓ Saved!</strong><br>
+                            Token saved to config.json<br><br>
+                            <strong>Next:</strong> Restart Homebridge for changes to take effect
+                        </div>
+                    `;
+                    document.getElementById('token-input').value = '';
 
-                // Convert to byte array
-                const hashArray = new Uint8Array(32);
-                const hashView = new DataView(hashArray.buffer);
-                H.forEach((h, i) => hashView.setUint32(i * 4, h, false));
+                } catch (error) {
+                    console.error('[UI] Save error:', error);
+                    resultDiv.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${error.message}</div>`;
+                }
 
-                return hashArray;
-            }
+                button.disabled = false;
+                button.innerHTML = 'Save Token';
+            });
 
-            const hashBytes = sha256Pure(buffer);
-            const base64 = btoa(String.fromCharCode(...hashBytes));
-            return base64;
-        }
+            // Auto-save settings when changed
+            document.getElementById('refresh-interval').addEventListener('change', saveSettings);
+            document.getElementById('debug-mode').addEventListener('change', saveSettings);
+            document.getElementById('expose-temperature-sensor').addEventListener('change', saveSettings);
+        });
 
-        // Auto-save settings when changed
+        // Auto-save settings
         async function saveSettings() {
             try {
-                const pluginConfig = await homebridge.getPluginConfig();
+                const pluginConfig = await window.homebridge.getPluginConfig();
                 const config = (pluginConfig && pluginConfig.length > 0) ? pluginConfig[0] : {
                     platform: 'MELCloudHome',
                     name: 'MELCloud Home'
                 };
 
-                // IMPORTANT: Preserve refreshToken when updating settings
-                // Otherwise changing settings will wipe out the token!
+                // Update settings while preserving refreshToken
                 config.refreshInterval = parseInt(document.getElementById('refresh-interval').value);
                 config.debug = document.getElementById('debug-mode').checked;
                 config.exposeTemperatureSensor = document.getElementById('expose-temperature-sensor').checked;
-                // Keep existing refreshToken if it exists
 
-                await homebridge.updatePluginConfig([config]);
-                await homebridge.savePluginConfig();
+                await window.homebridge.updatePluginConfig([config]);
+                await window.homebridge.savePluginConfig();
                 console.log('[UI] Settings saved:', config);
             } catch (error) {
                 console.error('[UI] Failed to save settings:', error);
@@ -408,7 +265,7 @@
         // Load current settings
         async function loadSettings() {
             try {
-                const pluginConfig = await homebridge.getPluginConfig();
+                const pluginConfig = await window.homebridge.getPluginConfig();
                 if (pluginConfig && pluginConfig.length > 0) {
                     const config = pluginConfig[0];
                     document.getElementById('refresh-interval').value = config.refreshInterval || 30;
@@ -420,20 +277,6 @@
                 console.error('[UI] Failed to load settings:', error);
             }
         }
-
-        // Initialize
-        window.addEventListener('load', async () => {
-            homebridge = window.homebridge;
-            console.log('[MELCloudHome UI] Ready');
-
-            // Load current settings
-            await loadSettings();
-
-            // Auto-save when settings change
-            document.getElementById('refresh-interval').addEventListener('change', saveSettings);
-            document.getElementById('debug-mode').addEventListener('change', saveSettings);
-            document.getElementById('expose-temperature-sensor').addEventListener('change', saveSettings);
-        });
     </script>
 </body>
 </html>
