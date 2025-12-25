@@ -1,5 +1,5 @@
 import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
-import { MELCloudAPI } from './melcloud-api';
+import { MELCloudAPI, AirToAirUnit } from './melcloud-api';
 export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     readonly log: Logger;
     readonly config: PlatformConfig;
@@ -8,8 +8,11 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     readonly Characteristic: typeof Characteristic;
     readonly accessories: PlatformAccessory[];
     private readonly accessoryInstances;
+    private readonly fanButtonInstances;
+    private readonly vaneButtonInstances;
     private melcloudAPI;
     private refreshInterval?;
+    private refreshTimeout?;
     private configManager;
     constructor(log: Logger, config: PlatformConfig, api: API);
     /**
@@ -27,5 +30,26 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     private refreshAllDevices;
     getAPI(): MELCloudAPI;
     refreshDevice(deviceId: string): Promise<void>;
+    /**
+     * Schedule a debounced refresh of all devices
+     * Called after button presses to sync state across all accessories
+     */
+    scheduleRefresh(): void;
+    /**
+     * Immediately update all fan buttons for a specific device
+     * Called when a fan speed is changed to ensure mutual exclusivity
+     */
+    updateFanButtonsForDevice(device: AirToAirUnit): void;
+    /**
+     * Immediately update all vane buttons for a specific device
+     * Called when vane position is changed to ensure mutual exclusivity
+     */
+    updateVaneButtonsForDevice(device: AirToAirUnit): void;
+    /**
+     * Update ALL buttons (fan + vane) for a device to keep caches in sync
+     * This ensures that when one button type is pressed, all other buttons
+     * have the correct device state for their next API call
+     */
+    updateAllButtonsForDevice(device: AirToAirUnit): void;
 }
 //# sourceMappingURL=platform.d.ts.map

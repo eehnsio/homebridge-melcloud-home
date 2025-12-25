@@ -123,6 +123,37 @@
                         </div>
                     </div>
 
+                    <div class="mb-3">
+                        <label for="fan-speed-buttons" class="form-label">
+                            Fan Speed Buttons
+                        </label>
+                        <select class="form-select" id="fan-speed-buttons">
+                            <option value="none">None</option>
+                            <option value="simple">Simple (Auto, Quiet, Max)</option>
+                            <option value="all">All speeds (Auto, 1-5)</option>
+                        </select>
+                        <small class="text-muted">
+                            Create separate switch buttons for fan speed control with clear labels
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="vane-control" class="form-label">
+                            Vane Control
+                        </label>
+                        <select class="form-select" id="vane-control">
+                            <option value="none">None</option>
+                            <option value="buttons">Buttons (Auto, Swing)</option>
+                        </select>
+                        <small class="text-muted">
+                            Control vane/swing position. Buttons are OFF when AC is OFF.
+                        </small>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <strong>Note:</strong> Changing button settings will remove/add accessories. You may need to re-assign rooms in the Home app after restart.
+                    </div>
+
                     <div class="alert alert-info">
                         <strong>Note:</strong> Settings are saved automatically. Restart Homebridge for changes to take effect.
                     </div>
@@ -209,7 +240,9 @@
                             refreshToken: token,
                             refreshInterval: 30,
                             debug: false,
-                            exposeTemperatureSensor: true
+                            exposeTemperatureSensor: true,
+                            fanSpeedButtons: 'none',
+                            swingMode: 'none'
                         };
 
                     // Update and save using Homebridge client-side API
@@ -238,6 +271,8 @@
             document.getElementById('refresh-interval').addEventListener('change', saveSettings);
             document.getElementById('debug-mode').addEventListener('change', saveSettings);
             document.getElementById('expose-temperature-sensor').addEventListener('change', saveSettings);
+            document.getElementById('fan-speed-buttons').addEventListener('change', saveSettings);
+            document.getElementById('vane-control').addEventListener('change', saveSettings);
         });
 
         // Auto-save settings
@@ -253,6 +288,15 @@
                 config.refreshInterval = parseInt(document.getElementById('refresh-interval').value);
                 config.debug = document.getElementById('debug-mode').checked;
                 config.exposeTemperatureSensor = document.getElementById('expose-temperature-sensor').checked;
+                config.fanSpeedButtons = document.getElementById('fan-speed-buttons').value;
+                config.vaneControl = document.getElementById('vane-control').value;
+
+                // Remove old deprecated options if they exist
+                delete config.exposeFanSpeedAccessory;
+                delete config.exposeSwingAccessory;
+                delete config.exposeSwingMode;
+                delete config.swingMode;
+                delete config.vaneButtons;
 
                 await window.homebridge.updatePluginConfig([config]);
                 await window.homebridge.savePluginConfig();
@@ -271,6 +315,11 @@
                     document.getElementById('refresh-interval').value = config.refreshInterval || 30;
                     document.getElementById('debug-mode').checked = config.debug || false;
                     document.getElementById('expose-temperature-sensor').checked = config.exposeTemperatureSensor !== false; // Default true
+                    document.getElementById('fan-speed-buttons').value = config.fanSpeedButtons || 'none';
+                    // Support legacy config migration: vaneButtons "simple" -> vaneControl "buttons"
+                    let vaneControl = config.vaneControl || 'none';
+                    if (config.vaneButtons === 'simple') vaneControl = 'buttons';
+                    document.getElementById('vane-control').value = vaneControl;
                     console.log('[UI] Settings loaded:', config);
                 }
             } catch (error) {

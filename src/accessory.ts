@@ -86,11 +86,12 @@ export class MELCloudAccessory {
       .onSet(this.setHeatingThresholdTemperature.bind(this));
 
     // Optional: Rotation Speed for fan speed
+    // We use 1-6 range (Auto=1, One=2, ..., Five=6) to avoid HomeKit treating 0 as "off"
     if (this.device.capabilities.numberOfFanSpeeds > 0) {
       this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed)
         .setProps({
-          minValue: 0,
-          maxValue: this.device.capabilities.numberOfFanSpeeds,
+          minValue: 1,
+          maxValue: this.device.capabilities.numberOfFanSpeeds + 1, // +1 because we shifted range
           minStep: 1,
         })
         .onGet(this.getRotationSpeed.bind(this))
@@ -119,6 +120,24 @@ export class MELCloudAccessory {
       if (existingSensor) {
         this.accessory.removeService(existingSensor);
       }
+    }
+
+    // Clean up old/deprecated services (vane control is now handled by separate VaneButton accessories)
+    const servicesToRemove = [
+      this.accessory.getService(this.platform.Service.Fan),        // Old fan service
+      this.accessory.getService(this.platform.Service.Slat),       // Old slat service
+      this.accessory.getService('swing-control'),                  // Old swing switch
+      this.accessory.getService('vane-control'),                   // Old vane slider
+    ];
+    for (const svc of servicesToRemove) {
+      if (svc) {
+        this.accessory.removeService(svc);
+        this.platform.log.info(`[${this.device.givenDisplayName}] Removed old service: ${svc.displayName || svc.UUID}`);
+      }
+    }
+    // Remove old SwingMode characteristic from HeaterCooler if it exists
+    if (this.service.testCharacteristic(this.platform.Characteristic.SwingMode)) {
+      this.service.removeCharacteristic(this.service.getCharacteristic(this.platform.Characteristic.SwingMode));
     }
 
     // Update device state from cache (do this AFTER setting props to avoid validation warnings)
@@ -206,6 +225,10 @@ export class MELCloudAccessory {
         this.platform.Characteristic.Active,
         power ? 1 : 0,
       );
+
+      // Immediately update ALL buttons (fan + vane) for instant UI response
+      // Buttons show ON only when AC is ON + correct setting
+      this.platform.updateAllButtonsForDevice(this.device);
 
       // Schedule background refresh to sync with actual device state (verify our command worked)
       this.scheduleRefresh(2000);
@@ -666,11 +689,12 @@ export class MELCloudAccessory {
 
     if (this.device.capabilities.numberOfFanSpeeds > 0) {
       // Convert API values to numeric speed (handle both text and numeric formats)
+      // Use 1-6 range (Auto=1, One=2, ..., Five=6) to match getRotationSpeed
       const reverseSpeedMap: Record<string, number> = {
-        'Auto': 0, 'One': 1, 'Two': 2, 'Three': 3, 'Four': 4, 'Five': 5,
-        '0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5,
+        'Auto': 1, 'One': 2, 'Two': 3, 'Three': 4, 'Four': 5, 'Five': 6,
+        '0': 1, '1': 2, '2': 3, '3': 4, '4': 5, '5': 6,
       };
-      const speed = reverseSpeedMap[settings.SetFanSpeed] ?? 0;
+      const speed = reverseSpeedMap[settings.SetFanSpeed] ?? 1;
       const cachedSpeed = this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed).value;
 
       if (speed !== cachedSpeed) {
@@ -680,6 +704,7 @@ export class MELCloudAccessory {
         );
       }
     }
+
   }
 
   /**
@@ -723,7 +748,7 @@ export class MELCloudAccessory {
 
     // Log current state during refresh (respects config.debug)
     this.platform.debugLog(
-      `[${device.givenDisplayName}] Refresh: Power=${newSettings.Power}, Mode=${newSettings.OperationMode}, Temp=${newSettings.RoomTemperature}°C, Target=${newSettings.SetTemperature}°C, Fan=${newSettings.SetFanSpeed}`,
+      `[${device.givenDisplayName}] Refresh: Power=${newSettings.Power}, Mode=${newSettings.OperationMode}, Temp=${newSettings.RoomTemperature}°C, Target=${newSettings.SetTemperature}°C, Fan=${newSettings.SetFanSpeed}, Vane=${newSettings.VaneVerticalDirection}`,
     );
 
     // Normalize fan speed: API sometimes returns "0" and sometimes "Auto" for auto mode

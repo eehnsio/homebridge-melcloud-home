@@ -25,8 +25,10 @@ Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridg
 - Temperature control (including 0.5° increments)
 - Mode switching (Heat, Cool, Auto)
 - Fan speed control (Auto + 5 speed levels)
+- **Swing mode control** - oscillate vanes with native HomeKit toggle
 - Real-time temperature monitoring
 - Automatic device discovery
+- **Separate fan speed tile** (optional) - quick access to fan speed as separate HomeKit accessory
 - **Long-lived sessions** - authenticate once, automatic token refresh keeps you connected
 - **Lightweight & always responsive** - no browser dependencies or periodic re-authentication delays
 - Homebridge v1 & v2 compatible
@@ -83,6 +85,8 @@ All settings can be configured through the custom UI - click the Settings (⚙�
 | `refreshInterval` | How often to check device status (seconds). With 30-second polling, changes from the MELCloud app or remote control are picked up quickly. Configurable from 10-3600 seconds. | 30 |
 | `debug` | Enable detailed logging for troubleshooting. Shows all refresh data, API calls, and state changes without requiring Homebridge debug mode. | false |
 | `exposeTemperatureSensor` | Add a separate temperature sensor for each AC unit that can be used in HomeKit automations. | true |
+| `exposeSwingMode` | Show swing toggle in HomeKit for vane oscillation. When enabled, both horizontal and vertical vanes will oscillate. Requires device support. | true |
+| `exposeFanSpeedAccessory` | Show fan speed as a separate Fan tile in HomeKit. Useful for quick access to fan speed control. | false |
 
 ## Changelog
 

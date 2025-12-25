@@ -26,3 +26,7 @@ test-*.js
 # Config
 config/
 config.json
+
+# Local deploy scripts (not part of project)
+scripts/
+.deploy.env

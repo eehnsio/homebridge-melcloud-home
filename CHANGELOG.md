@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-12-25
+
+### Added
+- **Vane control buttons** - Control vertical vane/swing position from HomeKit
+  - Creates "Auto" and "Swing" button accessories for each AC unit
+  - Buttons are mutually exclusive (turning one on turns others off)
+  - Buttons show OFF when AC is powered off
+  - Configure via `vaneControl: "buttons"` in settings
+  - Note: Physical swing only works when fan speed > Quiet (hardware limitation)
+
+- **Fan speed buttons** - Quick access to common fan speeds
+  - Simple mode: Auto, Quiet, Max buttons
+  - All mode: Auto, Speed 1-5 buttons
+  - Configure via `fanSpeedButtons: "simple"` or `"all"` in settings
+
+### Fixed
+- **Button cache synchronization** - All button accessories now share cached device state
+  - Prevents race conditions when rapidly changing settings
+  - Fan buttons no longer accidentally overwrite vane settings (and vice versa)
+- **Optimistic UI updates** - All buttons update simultaneously when AC is powered on/off
+  - No more sequential one-by-one button updates
+
+### Changed
+- Consolidated `swingMode` and `vaneButtons` config options into single `vaneControl` option
+- Removed deprecated swing accessory (replaced by vane buttons)
+
+### Technical
+- Added `VaneButton` class for vane position control
+- Added `updateAllButtonsForDevice()` method for cross-button cache sync
+- API uses `"Swing"` (position 7) for vertical swing, NOT `"Six"` (position 6)
+- All button types now call `updateAllButtonsForDevice()` after state changes
+
 ## [1.3.0] - 2025-11-15
 
 ### Added
@@ -314,6 +346,8 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.4.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.0
+[1.3.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.3.0
 [1.2.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.2.1
 [1.2.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.2.0
 [1.1.8]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.1.8

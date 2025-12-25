@@ -42,6 +42,27 @@
         "type": "boolean",
         "default": true,
         "description": "Expose a separate temperature sensor for each AC unit. This allows HomeKit automations to trigger based on temperature (HomeKit doesn't allow automations from the built-in temperature on HeaterCooler accessories). You can hide the extra sensor tile in the Home app if desired."
+      },
+      "fanSpeedButtons": {
+        "title": "Fan Speed Buttons",
+        "type": "string",
+        "default": "none",
+        "oneOf": [
+          { "title": "None", "enum": ["none"] },
+          { "title": "Simple (Auto, Quiet, Max)", "enum": ["simple"] },
+          { "title": "All speeds (Auto, 1-5)", "enum": ["all"] }
+        ],
+        "description": "Create separate switch buttons for fan speed control. Each button shows its speed clearly (e.g. 'Bedroom Fan Auto'). More intuitive than a percentage slider."
+      },
+      "vaneControl": {
+        "title": "Vane Control",
+        "type": "string",
+        "default": "none",
+        "oneOf": [
+          { "title": "None", "enum": ["none"] },
+          { "title": "Buttons (Auto, Swing)", "enum": ["buttons"] }
+        ],
+        "description": "Control vane/swing position. 'Buttons' creates separate Auto and Swing switches. Buttons are OFF when AC is OFF, and mutually exclusive."
       }
     }
   }

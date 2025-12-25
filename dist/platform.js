@@ -4,6 +4,8 @@ exports.MELCloudHomePlatform = void 0;
 const settings_1 = require("./settings");
 const melcloud_api_1 = require("./melcloud-api");
 const accessory_1 = require("./accessory");
+const fan_speed_button_1 = require("./fan-speed-button");
+const vane_button_1 = require("./vane-button");
 const config_manager_1 = require("./config-manager");
 class MELCloudHomePlatform {
     constructor(log, config, api) {
@@ -14,6 +16,8 @@ class MELCloudHomePlatform {
         this.Characteristic = this.api.hap.Characteristic;
         this.accessories = [];
         this.accessoryInstances = new Map();
+        this.fanButtonInstances = new Map();
+        this.vaneButtonInstances = new Map();
         this.log.debug('Finished initializing platform:', this.config.name);
         // Initialize config manager for token persistence
         this.configManager = new config_manager_1.ConfigManager(this.log, this.api.user.storagePath());
@@ -87,6 +91,7 @@ class MELCloudHomePlatform {
             }
             // Register each device
             for (const device of devices) {
+                // Main AC accessory
                 const uuid = this.api.hap.uuid.generate(device.id);
                 const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
                 if (existingAccessory) {
@@ -107,15 +112,133 @@ class MELCloudHomePlatform {
                     this.accessoryInstances.set(uuid, accessoryInstance);
                     this.api.registerPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, [accessory]);
                 }
+                // Fan Speed Buttons (if enabled)
+                const fanSpeedButtons = this.config.fanSpeedButtons || 'none';
+                if (fanSpeedButtons !== 'none' && device.capabilities.numberOfFanSpeeds > 0) {
+                    // Determine which speeds to create buttons for
+                    let speeds;
+                    if (fanSpeedButtons === 'simple') {
+                        speeds = ['auto', 'quiet', 'max']; // Auto, Speed 1, Speed 5
+                    }
+                    else if (fanSpeedButtons === 'all') {
+                        speeds = ['auto', 'quiet', '2', '3', '4', 'max']; // All speeds
+                    }
+                    else {
+                        speeds = [];
+                    }
+                    for (const speedKey of speeds) {
+                        const buttonUuid = this.api.hap.uuid.generate(`${device.id}-fan-${speedKey}`);
+                        const existingButton = this.accessories.find(accessory => accessory.UUID === buttonUuid);
+                        const speedName = fan_speed_button_1.FanSpeedButton.SPEED_NAMES[fan_speed_button_1.FanSpeedButton.SPEED_API_VALUES[speedKey]] || speedKey;
+                        if (existingButton) {
+                            this.log.info(`Restoring Fan ${speedName} button from cache:`, device.givenDisplayName);
+                            existingButton.context.device = device;
+                            existingButton.context.speedKey = speedKey;
+                            this.api.updatePlatformAccessories([existingButton]);
+                            const buttonInstance = new fan_speed_button_1.FanSpeedButton(this, existingButton, speedKey);
+                            this.fanButtonInstances.set(buttonUuid, buttonInstance);
+                        }
+                        else {
+                            this.log.info(`Adding Fan ${speedName} button:`, device.givenDisplayName);
+                            const buttonAccessory = new this.api.platformAccessory(`${device.givenDisplayName} Fan ${speedName}`, buttonUuid);
+                            buttonAccessory.context.device = device;
+                            buttonAccessory.context.speedKey = speedKey;
+                            buttonAccessory.context.isFanButton = true;
+                            this.accessories.push(buttonAccessory);
+                            const buttonInstance = new fan_speed_button_1.FanSpeedButton(this, buttonAccessory, speedKey);
+                            this.fanButtonInstances.set(buttonUuid, buttonInstance);
+                            this.api.registerPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, [buttonAccessory]);
+                        }
+                    }
+                }
+                // Vane Buttons (if vaneControl === 'buttons')
+                // Also support legacy config: vaneButtons === 'simple'
+                const vaneControl = this.config.vaneControl || this.config.vaneButtons || 'none';
+                const enableVaneButtons = vaneControl === 'buttons' || vaneControl === 'simple';
+                if (enableVaneButtons) {
+                    const positions = ['auto', 'swing']; // Auto and Swing buttons
+                    for (const positionKey of positions) {
+                        const buttonUuid = this.api.hap.uuid.generate(`${device.id}-vane-${positionKey}`);
+                        const existingButton = this.accessories.find(accessory => accessory.UUID === buttonUuid);
+                        const positionName = vane_button_1.VaneButton.POSITION_NAMES[positionKey] || positionKey;
+                        if (existingButton) {
+                            this.log.info(`Restoring Vane ${positionName} button from cache:`, device.givenDisplayName);
+                            existingButton.context.device = device;
+                            existingButton.context.positionKey = positionKey;
+                            this.api.updatePlatformAccessories([existingButton]);
+                            const buttonInstance = new vane_button_1.VaneButton(this, existingButton, positionKey);
+                            this.vaneButtonInstances.set(buttonUuid, buttonInstance);
+                        }
+                        else {
+                            this.log.info(`Adding Vane ${positionName} button:`, device.givenDisplayName);
+                            const buttonAccessory = new this.api.platformAccessory(`${device.givenDisplayName} Vane ${positionName}`, buttonUuid);
+                            buttonAccessory.context.device = device;
+                            buttonAccessory.context.positionKey = positionKey;
+                            buttonAccessory.context.isVaneButton = true;
+                            this.accessories.push(buttonAccessory);
+                            const buttonInstance = new vane_button_1.VaneButton(this, buttonAccessory, positionKey);
+                            this.vaneButtonInstances.set(buttonUuid, buttonInstance);
+                            this.api.registerPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, [buttonAccessory]);
+                        }
+                    }
+                }
             }
-            // Remove accessories that no longer exist
+            // Remove accessories that no longer exist OR are disabled by config
             const devicesIds = devices.map(d => d.id);
+            const fanSpeedButtonsConfig = this.config.fanSpeedButtons || 'none';
+            // Support new vaneControl and legacy vaneButtons
+            const vaneControlConfig = this.config.vaneControl || this.config.vaneButtons || 'none';
+            const vaneButtonsEnabled = vaneControlConfig === 'buttons' || vaneControlConfig === 'simple';
             const accessoriesToRemove = this.accessories.filter(accessory => {
-                return !devicesIds.includes(accessory.context.device.id);
+                const deviceId = accessory.context.device?.id;
+                // Remove if device no longer exists
+                if (!deviceId || !devicesIds.includes(deviceId)) {
+                    return true;
+                }
+                // Remove old swing accessories (deprecated - replaced by vane buttons)
+                if (accessory.context.isSwingAccessory) {
+                    this.log.info('Removing deprecated swing accessory:', accessory.displayName);
+                    return true;
+                }
+                // Remove old fan slider accessory (deprecated)
+                if (accessory.context.isFanAccessory) {
+                    this.log.info('Removing deprecated fan slider accessory:', accessory.displayName);
+                    return true;
+                }
+                // Remove fan buttons if fanSpeedButtons is 'none'
+                if (accessory.context.isFanButton && fanSpeedButtonsConfig === 'none') {
+                    this.log.info('Removing fan button (fanSpeedButtons=none):', accessory.displayName);
+                    return true;
+                }
+                // Remove fan buttons that don't match current config (e.g., 'all' buttons when config is 'simple')
+                if (accessory.context.isFanButton && accessory.context.speedKey) {
+                    const configSpeeds = fanSpeedButtonsConfig === 'simple'
+                        ? ['auto', 'quiet', 'max']
+                        : fanSpeedButtonsConfig === 'all'
+                            ? ['auto', 'quiet', '2', '3', '4', 'max']
+                            : [];
+                    if (!configSpeeds.includes(accessory.context.speedKey)) {
+                        this.log.info(`Removing fan button (not in ${fanSpeedButtonsConfig}):`, accessory.displayName);
+                        return true;
+                    }
+                }
+                // Remove vane buttons if vaneControl is disabled
+                if (accessory.context.isVaneButton && !vaneButtonsEnabled) {
+                    this.log.info('Removing vane button (vaneControl disabled):', accessory.displayName);
+                    return true;
+                }
+                return false;
             });
             if (accessoriesToRemove.length > 0) {
                 this.log.info(`Removing ${accessoriesToRemove.length} cached accessory(ies)`);
                 this.api.unregisterPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, accessoriesToRemove);
+                // Also remove from our local array
+                for (const acc of accessoriesToRemove) {
+                    const index = this.accessories.indexOf(acc);
+                    if (index > -1) {
+                        this.accessories.splice(index, 1);
+                    }
+                }
             }
             // Start refresh interval
             this.startRefreshInterval();
@@ -173,6 +296,7 @@ class MELCloudHomePlatform {
             this.log.info(`Received ${devices.length} devices from MELCloud API`);
             let updatedCount = 0;
             for (const device of devices) {
+                // Update main AC accessory
                 const uuid = this.api.hap.uuid.generate(device.id);
                 const accessory = this.accessories.find(acc => acc.UUID === uuid);
                 const accessoryInstance = this.accessoryInstances.get(uuid);
@@ -183,6 +307,26 @@ class MELCloudHomePlatform {
                     // (it will log if anything changed)
                     accessoryInstance.updateFromDevice(device);
                     updatedCount++;
+                }
+                // Update Fan Speed Buttons (if exist)
+                for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
+                    if (buttonUuid.includes(device.id)) {
+                        const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+                        if (buttonAccessory) {
+                            buttonAccessory.context.device = device;
+                            this.api.updatePlatformAccessories([buttonAccessory]);
+                            buttonInstance.updateFromDevice(device);
+                        }
+                    }
+                }
+                // Update Vane Buttons (if exist)
+                for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
+                    const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+                    if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
+                        buttonAccessory.context.device = device;
+                        this.api.updatePlatformAccessories([buttonAccessory]);
+                        buttonInstance.updateFromDevice(device);
+                    }
                 }
             }
             this.log.info(`Successfully updated ${updatedCount} of ${devices.length} devices`);
@@ -199,6 +343,7 @@ class MELCloudHomePlatform {
             const devices = await this.melcloudAPI.getAllDevices();
             const device = devices.find(d => d.id === deviceId);
             if (device) {
+                // Update main AC accessory
                 const uuid = this.api.hap.uuid.generate(device.id);
                 const accessory = this.accessories.find(acc => acc.UUID === uuid);
                 const accessoryInstance = this.accessoryInstances.get(uuid);
@@ -207,11 +352,82 @@ class MELCloudHomePlatform {
                     this.api.updatePlatformAccessories([accessory]);
                     accessoryInstance.updateFromDevice(device);
                 }
+                // Update Fan Speed Buttons (if exist)
+                for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
+                    if (buttonUuid.includes(device.id)) {
+                        const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+                        if (buttonAccessory) {
+                            buttonAccessory.context.device = device;
+                            this.api.updatePlatformAccessories([buttonAccessory]);
+                            buttonInstance.updateFromDevice(device);
+                        }
+                    }
+                }
+                // Update Vane Buttons (if exist)
+                for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
+                    const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+                    if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
+                        buttonAccessory.context.device = device;
+                        this.api.updatePlatformAccessories([buttonAccessory]);
+                        buttonInstance.updateFromDevice(device);
+                    }
+                }
             }
         }
         catch (error) {
             this.log.debug('Failed to refresh device:', error);
         }
+    }
+    /**
+     * Schedule a debounced refresh of all devices
+     * Called after button presses to sync state across all accessories
+     */
+    scheduleRefresh() {
+        if (this.refreshTimeout) {
+            clearTimeout(this.refreshTimeout);
+        }
+        this.refreshTimeout = setTimeout(async () => {
+            await this.refreshAllDevices();
+        }, 2000);
+    }
+    /**
+     * Immediately update all fan buttons for a specific device
+     * Called when a fan speed is changed to ensure mutual exclusivity
+     */
+    updateFanButtonsForDevice(device) {
+        for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
+            const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+            // Check if this button belongs to the same device by comparing device IDs in context
+            if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
+                buttonAccessory.context.device = device;
+                buttonInstance.updateFromDevice(device);
+                this.debugLog(`[${device.givenDisplayName}] Updated fan button: ${buttonAccessory.displayName}`);
+            }
+        }
+    }
+    /**
+     * Immediately update all vane buttons for a specific device
+     * Called when vane position is changed to ensure mutual exclusivity
+     */
+    updateVaneButtonsForDevice(device) {
+        for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
+            const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+            // Check if this button belongs to the same device by comparing device IDs in context
+            if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
+                buttonAccessory.context.device = device;
+                buttonInstance.updateFromDevice(device);
+                this.debugLog(`[${device.givenDisplayName}] Updated vane button: ${buttonAccessory.displayName}`);
+            }
+        }
+    }
+    /**
+     * Update ALL buttons (fan + vane) for a device to keep caches in sync
+     * This ensures that when one button type is pressed, all other buttons
+     * have the correct device state for their next API call
+     */
+    updateAllButtonsForDevice(device) {
+        this.updateFanButtonsForDevice(device);
+        this.updateVaneButtonsForDevice(device);
     }
 }
 exports.MELCloudHomePlatform = MELCloudHomePlatform;
