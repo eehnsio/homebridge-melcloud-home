@@ -52,8 +52,6 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --tag ${{ steps.npm-tag.outputs.tag }} --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Generate changelog
         id: changelog
