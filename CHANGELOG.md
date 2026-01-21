@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-01-21
+
+### Fixed
+- **HomeKit "Not Responding" after inactivity** - Devices would show as unresponsive in HomeKit after periods without user interaction
+  - Root cause: Plugin only sent characteristic updates when values changed
+  - If temperature/state remained stable for hours, HomeKit received no updates and marked devices as unresponsive
+  - Fix: Now sends temperature updates every refresh cycle (default 30s) as a "heartbeat" regardless of value changes
+  - This keeps HomeKit aware that devices are responsive even during stable conditions
+
+- **Fan speed state flip-flop in logs** - Constant "State changed: Fan: 1 -> One" log spam
+  - MELCloud API alternates between returning numeric ("1") and text ("One") formats for fan speed
+  - Added proper normalization to treat both formats as equivalent
+  - Eliminates false state change notifications in logs
+
+### Changed
+- Added Node.js 24 support in engine requirements
+- Improved error handling in all GET handlers to prevent unhandled exceptions
+- Added validation for device data before updating characteristics
+
 ## [1.4.0] - 2025-12-25
 
 ### Added
@@ -346,6 +365,7 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.4.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.1
 [1.4.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.0
 [1.3.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.3.0
 [1.2.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.2.1
