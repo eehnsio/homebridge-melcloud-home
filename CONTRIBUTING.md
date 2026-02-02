@@ -2,9 +2,7 @@
 
 Thanks for your interest in contributing to homebridge-melcloud-home!
 
-## How to Contribute
-
-### Reporting Bugs
+## Reporting Bugs
 
 Open an issue with:
 - Your Homebridge version
@@ -14,24 +12,15 @@ Open an issue with:
 - What actually happened
 - Relevant logs (remove any cookies/credentials!)
 
-### Suggesting Features
+## Suggesting Features
 
-Open an issue describing:
-- What you want to achieve
-- Why it would be useful
-- How you envision it working
+Open an issue describing what you want to achieve and why it would be useful.
 
-### Pull Requests
+## Code Contributions
 
-1. Fork the repository
-2. Create a new branch (`git checkout -b feature/your-feature`)
-3. Make your changes
-4. Build and test: `npm run build`
-5. Commit your changes
-6. Push to your fork
-7. Open a Pull Request
+If you're interested in contributing code, please **open an issue first** to discuss your idea before starting work. We can help with context, approach, and any non-obvious details about the codebase.
 
-### Development Setup
+### Basic Setup
 
 ```bash
 git clone https://github.com/eehnsio/homebridge-melcloud-home.git
@@ -40,14 +29,4 @@ npm install
 npm run build
 ```
 
-### Guidelines
-
-- Keep PRs focused on a single feature/fix
-- Follow the existing code style
-- Test your changes
-- Update README if needed
-- **Never commit credentials or session cookies**
-
-## Questions?
-
-Open an issue or discussion on GitHub!
+**Never commit credentials or session cookies.**
