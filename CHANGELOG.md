@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.2] - 2026-02-04
+
+### Changed
+- **Reduced log spam** - Periodic refresh logs now only appear when `debug: true` is enabled (#9)
+  - Normal operation is now silent (except errors and state changes)
+  - Startup shows single "Refresh interval: 30s" line instead of 4 verbose messages
+  - All API debug messages now route through platform logger with `[DEBUG]` prefix
+- Removed dead code (`sessionValid`, `lastAuthError` fields in API client)
+- Consolidated duplicate device update logic into shared helper method
+
 ## [1.4.1] - 2026-01-21
 
 ### Fixed
@@ -365,6 +375,7 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.4.2]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.2
 [1.4.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.1
 [1.4.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.0
 [1.3.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.3.0
