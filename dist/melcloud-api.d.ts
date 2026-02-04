@@ -2,6 +2,7 @@ export interface MELCloudConfig {
     refreshToken: string;
     debug?: boolean;
     onTokenRefresh?: (newRefreshToken: string) => void;
+    debugLog?: (message: string) => void;
 }
 export interface DeviceSetting {
     name: string;
@@ -70,8 +71,6 @@ export interface DeviceCommand {
 }
 export declare class MELCloudAPI {
     private readonly config;
-    private sessionValid;
-    private lastAuthError?;
     private accessToken?;
     private tokenExpiry?;
     private currentRefreshToken?;

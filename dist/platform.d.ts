@@ -31,6 +31,10 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     getAPI(): MELCloudAPI;
     refreshDevice(deviceId: string): Promise<void>;
     /**
+     * Update all accessories (main AC, fan buttons, vane buttons) for a single device
+     */
+    private updateDeviceAccessories;
+    /**
      * Schedule a debounced refresh of all devices
      * Called after button presses to sync state across all accessories
      */

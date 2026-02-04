@@ -64,6 +64,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
             this.log.info('🔄 Refresh token rotated by MELCloud API');
             await this.configManager.saveRefreshToken(newRefreshToken);
           },
+          debugLog: (msg) => this.debugLog(msg),
         });
 
         this.log.info('✅ MELCloud API initialized successfully');
@@ -304,14 +305,12 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
   private startRefreshInterval() {
     const interval = (this.config.refreshInterval || 30) * 1000;
-    this.log.info(`Starting automatic device refresh every ${interval / 1000} seconds`);
+    this.log.info(`Refresh interval: ${interval / 1000}s`);
 
-    // Test immediate execution to verify the function works
-    this.log.info(`Testing immediate refresh to verify functionality...`);
+    // Initial refresh to sync state
     setImmediate(async () => {
       try {
         await this.refreshAllDevices();
-        this.log.info(`Initial refresh completed successfully`);
       } catch (error) {
         this.log.error('Initial refresh failed:', error);
       }
@@ -319,64 +318,23 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
     // Set up the interval
     this.refreshInterval = setInterval(async () => {
-      this.log.info(`[Refresh Interval] Running scheduled device refresh...`);
+      this.debugLog('Refresh cycle starting...');
       try {
         await this.refreshAllDevices();
       } catch (error) {
         this.log.error('Failed to refresh devices:', error);
       }
     }, interval);
-
-    this.log.info(`Refresh interval created with ID: ${this.refreshInterval}`);
   }
 
   private async refreshAllDevices() {
-    this.log.info('Refreshing device states from MELCloud API...');
-
     try {
       const devices = await this.melcloudAPI.getAllDevices();
-      this.log.info(`Received ${devices.length} devices from MELCloud API`);
+      this.debugLog(`Refreshing ${devices.length} devices...`);
 
-      let updatedCount = 0;
       for (const device of devices) {
-        // Update main AC accessory
-        const uuid = this.api.hap.uuid.generate(device.id);
-        const accessory = this.accessories.find(acc => acc.UUID === uuid);
-        const accessoryInstance = this.accessoryInstances.get(uuid);
-
-        if (accessory && accessoryInstance) {
-          accessory.context.device = device;
-          this.api.updatePlatformAccessories([accessory]);
-          // Notify the accessory instance to update its characteristics
-          // (it will log if anything changed)
-          accessoryInstance.updateFromDevice(device);
-          updatedCount++;
-        }
-
-        // Update Fan Speed Buttons (if exist)
-        for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
-          if (buttonUuid.includes(device.id)) {
-            const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
-            if (buttonAccessory) {
-              buttonAccessory.context.device = device;
-              this.api.updatePlatformAccessories([buttonAccessory]);
-              buttonInstance.updateFromDevice(device);
-            }
-          }
-        }
-
-        // Update Vane Buttons (if exist)
-        for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
-          const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
-          if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
-            buttonAccessory.context.device = device;
-            this.api.updatePlatformAccessories([buttonAccessory]);
-            buttonInstance.updateFromDevice(device);
-          }
-        }
-
+        this.updateDeviceAccessories(device);
       }
-      this.log.info(`Successfully updated ${updatedCount} of ${devices.length} devices`);
     } catch (error) {
       this.log.error('Failed to refresh devices:', error);
     }
@@ -392,42 +350,46 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
       const device = devices.find(d => d.id === deviceId);
 
       if (device) {
-        // Update main AC accessory
-        const uuid = this.api.hap.uuid.generate(device.id);
-        const accessory = this.accessories.find(acc => acc.UUID === uuid);
-        const accessoryInstance = this.accessoryInstances.get(uuid);
-
-        if (accessory && accessoryInstance) {
-          accessory.context.device = device;
-          this.api.updatePlatformAccessories([accessory]);
-          accessoryInstance.updateFromDevice(device);
-        }
-
-        // Update Fan Speed Buttons (if exist)
-        for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
-          if (buttonUuid.includes(device.id)) {
-            const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
-            if (buttonAccessory) {
-              buttonAccessory.context.device = device;
-              this.api.updatePlatformAccessories([buttonAccessory]);
-              buttonInstance.updateFromDevice(device);
-            }
-          }
-        }
-
-        // Update Vane Buttons (if exist)
-        for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
-          const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
-          if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
-            buttonAccessory.context.device = device;
-            this.api.updatePlatformAccessories([buttonAccessory]);
-            buttonInstance.updateFromDevice(device);
-          }
-        }
-
+        this.updateDeviceAccessories(device);
       }
     } catch (error) {
       this.log.debug('Failed to refresh device:', error);
+    }
+  }
+
+  /**
+   * Update all accessories (main AC, fan buttons, vane buttons) for a single device
+   */
+  private updateDeviceAccessories(device: AirToAirUnit) {
+    // Update main AC accessory
+    const uuid = this.api.hap.uuid.generate(device.id);
+    const accessory = this.accessories.find(acc => acc.UUID === uuid);
+    const accessoryInstance = this.accessoryInstances.get(uuid);
+
+    if (accessory && accessoryInstance) {
+      accessory.context.device = device;
+      this.api.updatePlatformAccessories([accessory]);
+      accessoryInstance.updateFromDevice(device);
+    }
+
+    // Update Fan Speed Buttons
+    for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
+      const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+      if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
+        buttonAccessory.context.device = device;
+        this.api.updatePlatformAccessories([buttonAccessory]);
+        buttonInstance.updateFromDevice(device);
+      }
+    }
+
+    // Update Vane Buttons
+    for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
+      const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+      if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
+        buttonAccessory.context.device = device;
+        this.api.updatePlatformAccessories([buttonAccessory]);
+        buttonInstance.updateFromDevice(device);
+      }
     }
   }
 

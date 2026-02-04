@@ -7,7 +7,6 @@ exports.MELCloudAPI = void 0;
 const https_1 = __importDefault(require("https"));
 class MELCloudAPI {
     constructor(config) {
-        this.sessionValid = true;
         // Mobile app client credentials (from captured traffic)
         // Base64 of "homemobile:" (client_id:client_secret where secret is empty)
         this.CLIENT_AUTH = 'Basic aG9tZW1vYmlsZTo=';
@@ -32,9 +31,7 @@ class MELCloudAPI {
         if (!this.currentRefreshToken) {
             throw new Error('No refresh token available');
         }
-        if (this.config.debug) {
-            console.log('[MELCloud] Refreshing access token...');
-        }
+        this.config.debugLog?.('[MELCloud] Refreshing access token...');
         const formData = new URLSearchParams({
             grant_type: 'refresh_token',
             refresh_token: this.currentRefreshToken,
@@ -61,8 +58,6 @@ class MELCloudAPI {
                 });
                 res.on('end', () => {
                     if (res.statusCode !== 200) {
-                        this.sessionValid = false;
-                        this.lastAuthError = new Date();
                         reject(new Error(`Token refresh failed: HTTP ${res.statusCode}: ${body}`));
                         return;
                     }
@@ -71,16 +66,11 @@ class MELCloudAPI {
                         this.accessToken = tokenResponse.access_token;
                         this.currentRefreshToken = tokenResponse.refresh_token;
                         this.tokenExpiry = Date.now() + (tokenResponse.expires_in * 1000);
-                        this.sessionValid = true;
-                        if (this.config.debug) {
-                            console.log('[MELCloud] ✅ Access token refreshed successfully');
-                            console.log('[MELCloud] Token expires in:', tokenResponse.expires_in, 'seconds');
-                        }
+                        this.config.debugLog?.('[MELCloud] Access token refreshed successfully');
+                        this.config.debugLog?.(`[MELCloud] Token expires in: ${tokenResponse.expires_in} seconds`);
                         // Notify platform if refresh token changed (for persistence)
                         if (this.config.onTokenRefresh && tokenResponse.refresh_token !== this.config.refreshToken) {
-                            if (this.config.debug) {
-                                console.log('[MELCloud] 🔄 Refresh token rotated, saving to config...');
-                            }
+                            this.config.debugLog?.('[MELCloud] Refresh token rotated, saving to config...');
                             this.config.onTokenRefresh(tokenResponse.refresh_token);
                         }
                         resolve();
@@ -104,9 +94,7 @@ class MELCloudAPI {
      */
     async ensureAuthenticated() {
         if (!this.accessToken || this.isTokenExpired()) {
-            if (this.config.debug) {
-                console.log('[MELCloud] Access token missing or expired, refreshing...');
-            }
+            this.config.debugLog?.('[MELCloud] Access token missing or expired, refreshing...');
             await this.refreshAccessToken();
         }
     }
@@ -126,9 +114,7 @@ class MELCloudAPI {
         catch (error) {
             // If we get 401, try to refresh token and retry once
             if (error instanceof Error && error.message.includes('HTTP 401') && retryCount === 0) {
-                if (this.config.debug) {
-                    console.log('[MELCloud] Got 401 error, forcing token refresh and retrying...');
-                }
+                this.config.debugLog?.('[MELCloud] Got 401 error, forcing token refresh and retrying...');
                 this.accessToken = undefined; // Force refresh
                 this.tokenExpiry = undefined;
                 await this.ensureAuthenticated();
@@ -166,10 +152,6 @@ class MELCloudAPI {
                 });
                 res.on('end', () => {
                     if (res.statusCode !== 200) {
-                        if (res.statusCode === 401) {
-                            this.sessionValid = false;
-                            this.lastAuthError = new Date();
-                        }
                         reject(new Error(`HTTP ${res.statusCode}: ${responseBody}`));
                         return;
                     }
@@ -202,20 +184,14 @@ class MELCloudAPI {
      * Get user context including all devices
      */
     async getUserContext() {
-        if (this.config.debug) {
-            console.log('[MELCloud] Fetching user context...');
-        }
-        // Use different endpoint based on auth method
-        const path = this.config.refreshToken ? '/context' : '/api/user/context';
-        return this.makeRequest('GET', path);
+        this.config.debugLog?.('[MELCloud] Fetching user context...');
+        return this.makeRequest('GET', '/context');
     }
     /**
      * Control a device
      */
     async controlDevice(deviceId, command) {
-        if (this.config.debug) {
-            console.log(`[MELCloud] Controlling device ${deviceId}:`, command);
-        }
+        this.config.debugLog?.(`[MELCloud] Controlling device ${deviceId}: ${JSON.stringify(command)}`);
         // Use mobile BFF API for control - /monitor endpoint matches mobile app
         await this.makeRequest('PUT', `/monitor/ataunit/${deviceId}`, command);
     }
