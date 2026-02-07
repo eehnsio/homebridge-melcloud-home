@@ -10,7 +10,7 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     private readonly accessoryInstances;
     private readonly fanButtonInstances;
     private readonly vaneButtonInstances;
-    private melcloudAPI;
+    private melcloudAPI?;
     private refreshInterval?;
     private refreshTimeout?;
     private configManager;
@@ -19,13 +19,13 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
      * Debug logging helper - respects config.debug flag
      * When debug is enabled, logs at INFO level so it shows without -D flag
      */
-    debugLog(message: string, ...args: any[]): void;
+    debugLog(message: string, ...args: unknown[]): void;
     /**
      * Initialize authentication - uses OAuth refresh token from Homebridge UI
      */
     private initializeAuthentication;
     configureAccessory(accessory: PlatformAccessory): void;
-    discoverDevices(): Promise<void>;
+    private discoverDevices;
     private startRefreshInterval;
     private refreshAllDevices;
     getAPI(): MELCloudAPI;

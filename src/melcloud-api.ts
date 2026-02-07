@@ -92,10 +92,12 @@ export class MELCloudAPI {
   private accessToken?: string;
   private tokenExpiry?: number;
   private currentRefreshToken?: string;
+  private refreshPromise?: Promise<void>;
 
   // Mobile app client credentials (from captured traffic)
   // Base64 of "homemobile:" (client_id:client_secret where secret is empty)
   private readonly CLIENT_AUTH = 'Basic aG9tZW1vYmlsZTo=';
+  private readonly httpsAgent = new https.Agent({ keepAlive: true });
 
   constructor(config: MELCloudConfig) {
     this.config = config;
@@ -137,6 +139,7 @@ export class MELCloudAPI {
         path: '/connect/token',
         method: 'POST',
         timeout: 10000,
+        agent: this.httpsAgent,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -155,12 +158,21 @@ export class MELCloudAPI {
 
         res.on('end', () => {
           if (res.statusCode !== 200) {
-            reject(new Error(`Token refresh failed: HTTP ${res.statusCode}: ${body}`));
+            this.config.debugLog?.(`[MELCloud] Token refresh response body: ${body}`);
+            reject(new Error(`Token refresh failed: HTTP ${res.statusCode}`));
             return;
           }
 
           try {
-            const tokenResponse: TokenResponse = JSON.parse(body);
+            const tokenResponse = JSON.parse(body);
+            if (
+              typeof tokenResponse.access_token !== 'string' ||
+              typeof tokenResponse.refresh_token !== 'string' ||
+              typeof tokenResponse.expires_in !== 'number'
+            ) {
+              reject(new Error('Invalid token response: missing required fields'));
+              return;
+            }
             this.accessToken = tokenResponse.access_token;
             this.currentRefreshToken = tokenResponse.refresh_token;
             this.tokenExpiry = Date.now() + (tokenResponse.expires_in * 1000);
@@ -176,7 +188,7 @@ export class MELCloudAPI {
 
             resolve();
           } catch (error) {
-            reject(new Error(`Failed to parse token response: ${error}`));
+            reject(new Error(`Failed to parse token response: ${error instanceof Error ? error.message : String(error)}`));
           }
         });
       });
@@ -197,11 +209,24 @@ export class MELCloudAPI {
    */
   private async ensureAuthenticated(): Promise<void> {
     if (!this.accessToken || this.isTokenExpired()) {
+      if (this.refreshPromise) {
+        await this.refreshPromise;
+        return;
+      }
       this.config.debugLog?.('[MELCloud] Access token missing or expired, refreshing...');
-      await this.refreshAccessToken();
+      this.refreshPromise = this.refreshAccessToken();
+      try {
+        await this.refreshPromise;
+      } finally {
+        this.refreshPromise = undefined;
+      }
     }
   }
 
+
+  private static readonly RETRYABLE_STATUS_CODES = [429, 500, 502, 503];
+  private static readonly RETRYABLE_ERROR_CODES = ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND'];
+  private static readonly MAX_RETRIES = 3;
 
   private async makeRequest<T>(
     method: string,
@@ -231,8 +256,48 @@ export class MELCloudAPI {
         await this.ensureAuthenticated();
         return this.makeRequest<T>(method, path, data, retryCount + 1);
       }
+
+      // Retry on transient failures with exponential backoff
+      if (retryCount < MELCloudAPI.MAX_RETRIES && this.isRetryableError(error)) {
+        const delay = this.getRetryDelay(error, retryCount);
+        this.config.debugLog?.(`[MELCloud] Retryable error, attempt ${retryCount + 1}/${MELCloudAPI.MAX_RETRIES}, waiting ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.makeRequest<T>(method, path, data, retryCount + 1);
+      }
+
       throw error;
     }
+  }
+
+  private isRetryableError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+    // Check HTTP status codes
+    for (const code of MELCloudAPI.RETRYABLE_STATUS_CODES) {
+      if (error.message.includes(`HTTP ${code}`)) {
+        return true;
+      }
+    }
+    // Check network error codes
+    for (const code of MELCloudAPI.RETRYABLE_ERROR_CODES) {
+      if (error.message.includes(code)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private getRetryDelay(error: unknown, retryCount: number): number {
+    // Respect Retry-After header (encoded in error message for 429s)
+    if (error instanceof Error && error.message.includes('HTTP 429')) {
+      const retryAfterMatch = error.message.match(/Retry-After: (\d+)/);
+      if (retryAfterMatch) {
+        return parseInt(retryAfterMatch[1]) * 1000;
+      }
+    }
+    // Exponential backoff: 1s, 2s, 4s
+    return Math.pow(2, retryCount) * 1000;
   }
 
   /**
@@ -253,6 +318,7 @@ export class MELCloudAPI {
         path,
         method,
         timeout: 10000,
+        agent: this.httpsAgent,
         headers,
       };
 
@@ -266,29 +332,37 @@ export class MELCloudAPI {
         };
       }
 
+      const MAX_RESPONSE_SIZE = 1024 * 1024; // 1MB limit
+
       const req = https.request(options, (res) => {
         let responseBody = '';
 
         res.on('data', (chunk) => {
           responseBody += chunk;
+          if (responseBody.length > MAX_RESPONSE_SIZE) {
+            req.destroy();
+            reject(new Error('Response body exceeds size limit'));
+          }
         });
 
         res.on('end', () => {
           if (res.statusCode !== 200) {
-            reject(new Error(`HTTP ${res.statusCode}: ${responseBody}`));
+            const retryAfter = res.headers['retry-after'];
+            const retryInfo = retryAfter ? ` Retry-After: ${retryAfter}` : '';
+            reject(new Error(`HTTP ${res.statusCode}${retryInfo}`));
             return;
           }
 
           try {
-            // Handle empty responses (e.g., from PUT requests)
+            // Handle empty responses (e.g., from PUT requests that return no body)
             if (!responseBody || responseBody.trim() === '') {
-              resolve({} as T);
+              resolve(undefined as T);
               return;
             }
             const response = JSON.parse(responseBody);
             resolve(response);
           } catch (error) {
-            reject(new Error(`Failed to parse response: ${error}`));
+            reject(new Error(`Failed to parse response: ${error instanceof Error ? error.message : String(error)}`));
           }
         });
       });
@@ -319,9 +393,9 @@ export class MELCloudAPI {
    * Control a device
    */
   async controlDevice(deviceId: string, command: DeviceCommand): Promise<void> {
-    this.config.debugLog?.(`[MELCloud] Controlling device ${deviceId}: ${JSON.stringify(command)}`);
+    this.config.debugLog?.(`[MELCloud] Controlling device ${encodeURIComponent(deviceId)}: ${JSON.stringify(command)}`);
     // Use mobile BFF API for control - /monitor endpoint matches mobile app
-    await this.makeRequest('PUT', `/monitor/ataunit/${deviceId}`, command);
+    await this.makeRequest('PUT', `/monitor/ataunit/${encodeURIComponent(deviceId)}`, command);
   }
 
   /**
@@ -331,8 +405,15 @@ export class MELCloudAPI {
     const context = await this.getUserContext();
     const devices: AirToAirUnit[] = [];
 
+    if (!context?.buildings || !Array.isArray(context.buildings)) {
+      this.config.debugLog?.('[MELCloud] Invalid context response: missing buildings array');
+      return devices;
+    }
+
     for (const building of context.buildings) {
-      devices.push(...building.airToAirUnits);
+      if (Array.isArray(building.airToAirUnits)) {
+        devices.push(...building.airToAirUnits);
+      }
     }
 
     return devices;

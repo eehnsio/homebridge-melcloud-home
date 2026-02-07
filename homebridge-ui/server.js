@@ -1,6 +1,4 @@
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const https = require('https');
 
@@ -134,6 +132,12 @@ class PluginUiServer extends HomebridgePluginUiServer {
       throw new Error('OAuth flow failed - did not receive app redirect. The signin-oidc-meu endpoint may have failed.');
     }
 
+    // Validate state parameter to prevent CSRF attacks
+    const stateMatch = callbackUrl.match(/[?&]state=([^&]+)/);
+    if (!stateMatch || decodeURIComponent(stateMatch[1]) !== state) {
+      throw new Error('OAuth state mismatch - possible CSRF attack');
+    }
+
     // Extract the authorization code from melcloudhome://...?code=XXX
     const codeMatch = callbackUrl.match(/[?&]code=([^&]+)/);
     if (!codeMatch) {
@@ -152,7 +156,7 @@ class PluginUiServer extends HomebridgePluginUiServer {
       `code=${encodeURIComponent(authCode)}&` +
       `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
       `client_id=${CLIENT_ID}&` +
-      `code_verifier=${codeVerifier}`;
+      `code_verifier=${encodeURIComponent(codeVerifier)}`;
 
     const tokenResponse = await this.curlRequest('https://auth.melcloudhome.com/connect/token', {
       method: 'POST',
@@ -164,7 +168,12 @@ class PluginUiServer extends HomebridgePluginUiServer {
       followRedirects: false,
     });
 
-    const tokens = JSON.parse(tokenResponse.html);
+    let tokens;
+    try {
+      tokens = JSON.parse(tokenResponse.html);
+    } catch {
+      throw new Error('Token exchange failed - invalid JSON response from token endpoint');
+    }
 
     if (!tokens.refresh_token) {
       throw new Error('Token exchange failed - no refresh token in response');
@@ -190,7 +199,9 @@ class PluginUiServer extends HomebridgePluginUiServer {
     function parseCookie(setCookieHeader, requestUrl) {
       const urlObj = new URL(requestUrl);
       const parts = setCookieHeader.split(';').map(p => p.trim());
-      const [name, value] = parts[0].split('=');
+      const eqIndex = parts[0].indexOf('=');
+      const name = parts[0].substring(0, eqIndex);
+      const value = parts[0].substring(eqIndex + 1);
 
       const cookie = { name, value, domain: urlObj.hostname, path: '/', expires: null };
 
@@ -288,7 +299,6 @@ class PluginUiServer extends HomebridgePluginUiServer {
               'User-Agent': options.headers?.['User-Agent'] || 'Mozilla/5.0',
               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
               'Accept-Language': 'en-US,en;q=0.9',
-              'Accept-Encoding': 'gzip, deflate, br',
               'Sec-Fetch-Site': isCrossSite ? 'cross-site' : 'same-origin',
               'Sec-Fetch-Mode': 'navigate',
               'Sec-Fetch-Dest': 'document',
@@ -328,8 +338,8 @@ class PluginUiServer extends HomebridgePluginUiServer {
           let data = '';
           res.on('data', chunk => data += chunk);
           res.on('end', () => {
-            // Handle redirects
-            if ([301, 302, 303].includes(res.statusCode)) {
+            // Handle redirects (unless explicitly disabled)
+            if (options.followRedirects !== false && [301, 302, 303].includes(res.statusCode)) {
               if (redirectCount >= MAX_REDIRECTS) {
                 return reject(new Error('Too many redirects'));
               }
@@ -381,8 +391,10 @@ class PluginUiServer extends HomebridgePluginUiServer {
 
                 // Wait a tiny bit to simulate loading time
                 setTimeout(() => {
-                  const metaUrl = `https://auth.melcloudhome.com${redirectUrl}`;
-                  const metaUrlObj = new URL(metaUrl);
+                  // Handle both absolute and relative meta refresh URLs
+                  const metaUrl = redirectUrl.startsWith('http')
+                    ? redirectUrl
+                    : `https://auth.melcloudhome.com${redirectUrl}`;
 
                   const metaReq = https.request({
                     hostname: 'auth.melcloudhome.com',
@@ -393,7 +405,6 @@ class PluginUiServer extends HomebridgePluginUiServer {
                       'User-Agent': options.headers?.['User-Agent'] || 'Mozilla/5.0',
                       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                       'Accept-Language': 'en-US,en;q=0.9',
-                      'Accept-Encoding': 'gzip, deflate, br',
                       'Referer': 'https://auth.melcloudhome.com/Redirect',  // Browser would send /Redirect as referer!
                       'Connection': 'keep-alive',
                       'Upgrade-Insecure-Requests': '1',

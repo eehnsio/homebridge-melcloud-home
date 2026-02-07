@@ -18,7 +18,7 @@ class VaneButton {
         const positionName = VaneButton.POSITION_NAMES[this.positionKey] || this.positionKey;
         // Set accessory information
         this.accessory.getService(this.platform.Service.AccessoryInformation)
-            .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
+            ?.setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
             .setCharacteristic(this.platform.Characteristic.Model, 'MELCloud Vane Button')
             .setCharacteristic(this.platform.Characteristic.SerialNumber, `${this.device.connectedInterfaceIdentifier}-vane-${positionKey}`);
         // Get or create the Switch service
@@ -66,19 +66,20 @@ class VaneButton {
             // When turning OFF this button, set vane to Auto (don't power off AC)
             // But only if this position is currently active
             if (this.isCurrentPosition() && this.positionKey !== 'auto') {
-                await this.setVanePosition('Auto');
+                await this.setVanePosition('Auto', false);
             }
             return;
         }
         // When turning ON, set this vane position
-        await this.setVanePosition(this.getApiValue());
+        await this.setVanePosition(this.getApiValue(), true);
     }
-    async setVanePosition(vaneDirection) {
+    async setVanePosition(vaneDirection, forcePowerOn) {
         const settings = this.getSettings();
+        const power = forcePowerOn ? true : settings.Power === 'True';
         this.platform.log.info(`[${this.device.givenDisplayName} Vane] Sending API command: vaneVerticalDirection=${vaneDirection}`);
         try {
             await this.platform.getAPI().controlDevice(this.device.id, {
-                power: settings.Power === 'True',
+                power,
                 operationMode: settings.OperationMode,
                 setFanSpeed: settings.SetFanSpeed,
                 vaneHorizontalDirection: settings.VaneHorizontalDirection,
@@ -101,7 +102,7 @@ class VaneButton {
             this.platform.scheduleRefresh();
         }
         catch (error) {
-            this.platform.log.error(`[${this.device.givenDisplayName} Vane] Failed to set position:`, error);
+            this.platform.log.error(`[${this.device.givenDisplayName} Vane] Failed to set position:`, error instanceof Error ? error.message : String(error));
             throw new this.platform.api.hap.HapStatusError(-70402 /* this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }

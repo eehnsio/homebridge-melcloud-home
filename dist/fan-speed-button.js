@@ -8,6 +8,11 @@ const melcloud_api_1 = require("./melcloud-api");
  * - ON: AC is powered on AND fan speed matches this button's speed
  * - Setting ON: Sets fan speed to this value (powers on AC if off)
  * - Setting OFF: Sets fan speed to Auto (doesn't power off AC)
+ *
+ * NOTE: The `device` reference is shared across all accessories (main AC,
+ * fan buttons, vane buttons) for the same physical device. Mutations to
+ * `device.settings` are visible to all accessories immediately, which is
+ * intentional for keeping cached state in sync without extra API calls.
  */
 class FanSpeedButton {
     constructor(platform, accessory, speedKey) {
@@ -18,7 +23,7 @@ class FanSpeedButton {
         const speedName = this.getSpeedDisplayName();
         // Set accessory information
         this.accessory.getService(this.platform.Service.AccessoryInformation)
-            .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
+            ?.setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
             .setCharacteristic(this.platform.Characteristic.Model, 'MELCloud Fan Button')
             .setCharacteristic(this.platform.Characteristic.SerialNumber, `${this.device.connectedInterfaceIdentifier}-fan-${speedKey}`);
         // Get or create the Switch service
@@ -65,19 +70,20 @@ class FanSpeedButton {
             // When turning OFF this button, set fan to Auto (don't power off AC)
             // But only if this speed is currently active
             if (this.isCurrentSpeed()) {
-                await this.setFanSpeed('Auto');
+                await this.setFanSpeed('Auto', false);
             }
             return;
         }
-        // When turning ON, set this fan speed
-        await this.setFanSpeed(this.getApiValue());
+        // When turning ON, set this fan speed (and power on if off)
+        await this.setFanSpeed(this.getApiValue(), true);
     }
-    async setFanSpeed(fanSpeed) {
+    async setFanSpeed(fanSpeed, forcePowerOn) {
         const settings = this.getSettings();
         this.platform.debugLog(`[${this.device.givenDisplayName} Fan] Setting fan=${fanSpeed}, preserving vane=${settings.VaneVerticalDirection}`);
+        const power = forcePowerOn ? true : settings.Power === 'True';
         try {
             await this.platform.getAPI().controlDevice(this.device.id, {
-                power: true, // Always power on when setting fan speed
+                power, // Power on when turning button ON, preserve state when turning OFF
                 operationMode: settings.OperationMode,
                 setFanSpeed: fanSpeed,
                 vaneHorizontalDirection: settings.VaneHorizontalDirection,
@@ -92,7 +98,7 @@ class FanSpeedButton {
                     return { ...setting, value: fanSpeed };
                 }
                 if (setting.name === 'Power') {
-                    return { ...setting, value: 'True' };
+                    return { ...setting, value: power ? 'True' : 'False' };
                 }
                 return setting;
             });
@@ -103,7 +109,7 @@ class FanSpeedButton {
             this.platform.scheduleRefresh();
         }
         catch (error) {
-            this.platform.log.error(`[${this.device.givenDisplayName} Fan] Failed to set speed:`, error);
+            this.platform.log.error(`[${this.device.givenDisplayName} Fan] Failed to set speed:`, error instanceof Error ? error.message : String(error));
             throw new this.platform.api.hap.HapStatusError(-70402 /* this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }

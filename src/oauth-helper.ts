@@ -60,7 +60,7 @@ export class OAuthHelper {
     body?: string,
     redirectCount = 0,
   ): Promise<string> {
-    if (redirectCount > 10) {
+    if (redirectCount > 5) {
       throw new Error('Too many redirects');
     }
 
@@ -81,6 +81,11 @@ export class OAuthHelper {
             const redirectUrl = location.startsWith('http')
               ? location
               : `https://${urlObj.hostname}${location}`;
+
+            if (redirectUrl.startsWith('http://')) {
+              reject(new Error('Refusing to follow non-HTTPS redirect'));
+              return;
+            }
 
             // Follow redirect
             this.httpsRequest(redirectUrl, options, undefined, redirectCount + 1)
@@ -166,7 +171,7 @@ export class OAuthHelper {
     redirectCount = 0,
     cookies: string[] = [],
   ): Promise<{ html: string; cookies: string[]; finalUrl: string }> {
-    if (redirectCount > 10) {
+    if (redirectCount > 5) {
       throw new Error('Too many redirects');
     }
 
@@ -211,6 +216,11 @@ export class OAuthHelper {
               ? location
               : `https://${urlObj.hostname}${location}`;
 
+            if (redirectUrl.startsWith('http://')) {
+              reject(new Error('Refusing to follow non-HTTPS redirect'));
+              return;
+            }
+
             // Follow redirect with cookies
             this.httpsRequestWithCookies(redirectUrl, options, undefined, redirectCount + 1, cookies)
               .then(resolve)
@@ -246,8 +256,8 @@ export class OAuthHelper {
   ): Promise<string> {
     this.log.debug('Submitting login credentials...');
     this.log.debug(`Login URL: ${loginUrl.substring(0, 200)}...`);
-    this.log.debug(`CSRF token: ${csrf.substring(0, 50)}...`);
-    this.log.debug(`Cookies being sent: ${cookies.substring(0, 200)}...`);
+    this.log.debug(`CSRF token found (length: ${csrf.length})`);
+    this.log.debug(`Cookies being sent: ${cookies.split(';').length} cookie(s)`);
 
     const formData = new URLSearchParams({
       _csrf: csrf,
@@ -267,7 +277,7 @@ export class OAuthHelper {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': formData.toString().length,
+          'Content-Length': Buffer.byteLength(formData.toString()).toString(),
           'Cookie': cookies,
           'Origin': 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
           'Referer': loginUrl,
@@ -371,7 +381,7 @@ export class OAuthHelper {
         headers: {
           'User-Agent': MOBILE_USER_AGENT,
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': formData.toString().length,
+          'Content-Length': Buffer.byteLength(formData.toString()).toString(),
           'Cookie': cookies,
           'Origin': 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
           'Referer': urlObj.origin,
@@ -426,7 +436,7 @@ export class OAuthHelper {
    * Follow redirect chain to get authorization code
    */
   private async followRedirects(url: string, depth: number, cookies?: string): Promise<string> {
-    if (depth > 10) {
+    if (depth > 5) {
       throw new Error('Too many redirects');
     }
 
@@ -521,7 +531,7 @@ export class OAuthHelper {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': tokenData.toString().length,
+        'Content-Length': Buffer.byteLength(tokenData.toString()).toString(),
         'Authorization': 'Basic aG9tZW1vYmlsZTo=', // base64(homemobile:)
       },
     }, tokenData.toString());
@@ -579,6 +589,7 @@ export class OAuthHelper {
       const authCode = await this.submitLogin(loginPage.loginUrl, loginPage.csrf, email, password, loginPage.cookies);
 
       // Step 5: Exchange code for tokens
+      // Note: state validation happens at the redirect level - Cognito validates state in the callback
       const tokens = await this.exchangeCodeForTokens(authCode, pkce.verifier);
 
       this.log.info('✓ Successfully obtained OAuth tokens');

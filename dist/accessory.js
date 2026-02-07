@@ -12,7 +12,7 @@ class MELCloudAccessory {
         this.coolingThreshold = accessory.context.coolingThreshold;
         // Set accessory information
         this.accessory.getService(this.platform.Service.AccessoryInformation)
-            .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
+            ?.setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
             .setCharacteristic(this.platform.Characteristic.Model, 'MELCloud Home')
             .setCharacteristic(this.platform.Characteristic.SerialNumber, this.device.connectedInterfaceIdentifier);
         // Get or create the HeaterCooler service
@@ -108,7 +108,14 @@ class MELCloudAccessory {
             this.service.removeCharacteristic(this.service.getCharacteristic(this.platform.Characteristic.SwingMode));
         }
         // Update device state from cache (do this AFTER setting props to avoid validation warnings)
-        setImmediate(() => this.updateCharacteristics());
+        setImmediate(() => {
+            try {
+                this.updateCharacteristics();
+            }
+            catch (error) {
+                this.platform.log.error(`[${this.device.givenDisplayName}] Initial characteristic update failed:`, error instanceof Error ? error.message : String(error));
+            }
+        });
     }
     getSettings() {
         return melcloud_api_1.MELCloudAPI.parseSettings(this.device.settings);
@@ -144,6 +151,8 @@ class MELCloudAccessory {
             this.platform.log.info(`[${this.device.givenDisplayName}] Active state already matches (${settings.Power}), skipping command`);
             return;
         }
+        // Save previous state for rollback on failure
+        const previousSettings = [...this.device.settings];
         try {
             // Convert numeric fan speed back to text format for API
             // API returns numbers but expects text input
@@ -192,7 +201,9 @@ class MELCloudAccessory {
             this.scheduleRefresh(2000);
         }
         catch (error) {
-            this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set power:`, error);
+            // Revert optimistic state on failure
+            this.device.settings = previousSettings;
+            this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set power:`, error instanceof Error ? error.message : String(error));
             throw new this.platform.api.hap.HapStatusError(-70402 /* this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
@@ -209,6 +220,9 @@ class MELCloudAccessory {
                 case 'Heat': {
                     const roomTemp = parseFloat(settings.RoomTemperature);
                     const targetTemp = parseFloat(settings.SetTemperature);
+                    if (isNaN(roomTemp) || isNaN(targetTemp)) {
+                        return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+                    }
                     // Only show heating if room is below target
                     return roomTemp < targetTemp
                         ? this.platform.Characteristic.CurrentHeaterCoolerState.HEATING
@@ -217,6 +231,9 @@ class MELCloudAccessory {
                 case 'Cool': {
                     const roomTemp = parseFloat(settings.RoomTemperature);
                     const targetTemp = parseFloat(settings.SetTemperature);
+                    if (isNaN(roomTemp) || isNaN(targetTemp)) {
+                        return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+                    }
                     // Only show cooling if room is above target
                     return roomTemp > targetTemp
                         ? this.platform.Characteristic.CurrentHeaterCoolerState.COOLING
@@ -226,6 +243,9 @@ class MELCloudAccessory {
                 case 'Auto': {
                     const roomTemp = parseFloat(settings.RoomTemperature);
                     const targetTemp = parseFloat(settings.SetTemperature);
+                    if (isNaN(roomTemp) || isNaN(targetTemp)) {
+                        return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+                    }
                     // Use 1°C hysteresis to match typical device behavior
                     // Device heats if room < target - 1°C, cools if room > target + 1°C
                     if (roomTemp < targetTemp - 1) {
@@ -320,7 +340,7 @@ class MELCloudAccessory {
             this.scheduleRefresh();
         }
         catch (error) {
-            this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set mode:`, error);
+            this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set mode:`, error instanceof Error ? error.message : String(error));
             throw new this.platform.api.hap.HapStatusError(-70402 /* this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
@@ -461,7 +481,7 @@ class MELCloudAccessory {
             this.scheduleRefresh();
         }
         catch (error) {
-            this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set temperature:`, error);
+            this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set temperature:`, error instanceof Error ? error.message : String(error));
             throw new this.platform.api.hap.HapStatusError(-70402 /* this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
@@ -519,8 +539,14 @@ class MELCloudAccessory {
             return;
         }
         // Check if fan speed matches (handle both text format "Five" and numeric format "5")
-        const currentSpeedMatches = settings.SetFanSpeed === fanSpeedText ||
-            settings.SetFanSpeed === speed.toString();
+        // Normalize API format ("0"/"Auto" are same, "1"/"One" are same, etc.)
+        const normalizeSpeed = (s) => {
+            const map = {
+                '0': 'Auto', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five',
+            };
+            return map[s] || s;
+        };
+        const currentSpeedMatches = normalizeSpeed(settings.SetFanSpeed) === normalizeSpeed(fanSpeedText);
         if (currentSpeedMatches) {
             this.platform.log.info(`[${this.device.givenDisplayName}] Fan speed already matches, skipping command`);
             return;
@@ -550,7 +576,7 @@ class MELCloudAccessory {
             this.scheduleRefresh();
         }
         catch (error) {
-            this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set fan speed:`, error);
+            this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set fan speed:`, error instanceof Error ? error.message : String(error));
             throw new this.platform.api.hap.HapStatusError(-70402 /* this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
@@ -664,14 +690,21 @@ class MELCloudAccessory {
             this.pendingCommandRefresh = undefined;
         }, 5000); // Safety timeout in case refresh fails
         // Schedule new refresh after delay
-        this.refreshDebounceTimer = setTimeout(() => {
+        this.refreshDebounceTimer = setTimeout(async () => {
             this.platform.debugLog(`[${this.device.givenDisplayName}] Debounced refresh executing`);
-            this.platform.refreshDevice(this.device.id);
             this.refreshDebounceTimer = undefined;
-            // Clear the pending command flag when our verification refresh completes
-            if (this.pendingCommandRefresh) {
-                clearTimeout(this.pendingCommandRefresh);
-                this.pendingCommandRefresh = undefined;
+            try {
+                await this.platform.refreshDevice(this.device.id);
+            }
+            catch (error) {
+                this.platform.log.debug(`[${this.device.givenDisplayName}] Debounced refresh failed:`, error);
+            }
+            finally {
+                // Clear the pending command flag when our verification refresh completes
+                if (this.pendingCommandRefresh) {
+                    clearTimeout(this.pendingCommandRefresh);
+                    this.pendingCommandRefresh = undefined;
+                }
             }
         }, delay);
     }

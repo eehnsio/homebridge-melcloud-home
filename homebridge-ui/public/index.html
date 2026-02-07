@@ -205,7 +205,18 @@
                     }
                 } catch (error) {
                     console.error('[UI] Direct login error:', error);
-                    resultDiv.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${error.message}<br><small>Please check your email and password.</small></div>`;
+                    const errorAlert = document.createElement('div');
+                    errorAlert.className = 'alert alert-danger';
+                    const strong = document.createElement('strong');
+                    strong.textContent = 'Error: ';
+                    errorAlert.appendChild(strong);
+                    errorAlert.appendChild(document.createTextNode(error.message));
+                    errorAlert.appendChild(document.createElement('br'));
+                    const small = document.createElement('small');
+                    small.textContent = 'Please check your email and password.';
+                    errorAlert.appendChild(small);
+                    resultDiv.innerHTML = '';
+                    resultDiv.appendChild(errorAlert);
                 }
 
                 button.disabled = false;
@@ -242,7 +253,7 @@
                             debug: false,
                             exposeTemperatureSensor: true,
                             fanSpeedButtons: 'none',
-                            swingMode: 'none'
+                            vaneControl: 'none'
                         };
 
                     // Update and save using Homebridge client-side API
@@ -260,7 +271,14 @@
 
                 } catch (error) {
                     console.error('[UI] Save error:', error);
-                    resultDiv.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${error.message}</div>`;
+                    const errorAlert = document.createElement('div');
+                    errorAlert.className = 'alert alert-danger';
+                    const strong = document.createElement('strong');
+                    strong.textContent = 'Error: ';
+                    errorAlert.appendChild(strong);
+                    errorAlert.appendChild(document.createTextNode(error.message));
+                    resultDiv.innerHTML = '';
+                    resultDiv.appendChild(errorAlert);
                 }
 
                 button.disabled = false;
@@ -285,7 +303,8 @@
                 };
 
                 // Update settings while preserving refreshToken
-                config.refreshInterval = parseInt(document.getElementById('refresh-interval').value);
+                const rawInterval = parseInt(document.getElementById('refresh-interval').value);
+                config.refreshInterval = Math.max(10, Math.min(3600, isNaN(rawInterval) ? 30 : rawInterval));
                 config.debug = document.getElementById('debug-mode').checked;
                 config.exposeTemperatureSensor = document.getElementById('expose-temperature-sensor').checked;
                 config.fanSpeedButtons = document.getElementById('fan-speed-buttons').value;

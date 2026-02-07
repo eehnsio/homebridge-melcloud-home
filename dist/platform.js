@@ -22,8 +22,23 @@ class MELCloudHomePlatform {
         // Initialize config manager for token persistence
         this.configManager = new config_manager_1.ConfigManager(this.log, this.api.user.storagePath());
         this.api.on('didFinishLaunching', async () => {
-            this.log.info('Homebridge finished launching...');
-            await this.initializeAuthentication();
+            try {
+                this.log.info('Homebridge finished launching...');
+                await this.initializeAuthentication();
+            }
+            catch (error) {
+                this.log.error('Failed during initialization:', error instanceof Error ? error.message : String(error));
+            }
+        });
+        this.api.on('shutdown', () => {
+            if (this.refreshInterval) {
+                clearTimeout(this.refreshInterval);
+                this.refreshInterval = undefined;
+            }
+            if (this.refreshTimeout) {
+                clearTimeout(this.refreshTimeout);
+                this.refreshTimeout = undefined;
+            }
         });
     }
     /**
@@ -81,7 +96,7 @@ class MELCloudHomePlatform {
     async discoverDevices() {
         this.log.info('Discovering MELCloud Home devices...');
         try {
-            const devices = await this.melcloudAPI.getAllDevices();
+            const devices = await this.getAPI().getAllDevices();
             this.log.info(`Found ${devices.length} device(s)`);
             if (devices.length === 0) {
                 this.log.warn('No devices found. Please check:');
@@ -265,7 +280,7 @@ class MELCloudHomePlatform {
         }
     }
     startRefreshInterval() {
-        const interval = (this.config.refreshInterval || 30) * 1000;
+        const interval = Math.max(10, Math.min(3600, this.config.refreshInterval || 30)) * 1000;
         this.log.info(`Refresh interval: ${interval / 1000}s`);
         // Initial refresh to sync state
         setImmediate(async () => {
@@ -273,23 +288,27 @@ class MELCloudHomePlatform {
                 await this.refreshAllDevices();
             }
             catch (error) {
-                this.log.error('Initial refresh failed:', error);
+                this.log.error('Initial refresh failed:', error instanceof Error ? error.message : String(error));
             }
         });
-        // Set up the interval
-        this.refreshInterval = setInterval(async () => {
-            this.debugLog('Refresh cycle starting...');
-            try {
-                await this.refreshAllDevices();
-            }
-            catch (error) {
-                this.log.error('Failed to refresh devices:', error);
-            }
-        }, interval);
+        // Self-rescheduling refresh to prevent overlapping cycles
+        const scheduleNext = () => {
+            this.refreshInterval = setTimeout(async () => {
+                this.debugLog('Refresh cycle starting...');
+                try {
+                    await this.refreshAllDevices();
+                }
+                catch (error) {
+                    this.log.error('Failed to refresh devices:', error instanceof Error ? error.message : String(error));
+                }
+                scheduleNext();
+            }, interval);
+        };
+        scheduleNext();
     }
     async refreshAllDevices() {
         try {
-            const devices = await this.melcloudAPI.getAllDevices();
+            const devices = await this.getAPI().getAllDevices();
             this.debugLog(`Refreshing ${devices.length} devices...`);
             for (const device of devices) {
                 this.updateDeviceAccessories(device);
@@ -300,18 +319,21 @@ class MELCloudHomePlatform {
         }
     }
     getAPI() {
+        if (!this.melcloudAPI) {
+            throw new Error('MELCloud API not initialized - ensure authentication completed successfully');
+        }
         return this.melcloudAPI;
     }
     async refreshDevice(deviceId) {
         try {
-            const devices = await this.melcloudAPI.getAllDevices();
-            const device = devices.find(d => d.id === deviceId);
-            if (device) {
+            const devices = await this.getAPI().getAllDevices();
+            // Update all device accessories from the same response to avoid redundant API calls
+            for (const device of devices) {
                 this.updateDeviceAccessories(device);
             }
         }
         catch (error) {
-            this.log.debug('Failed to refresh device:', error);
+            this.log.debug('Failed to refresh device:', error instanceof Error ? error.message : String(error));
         }
     }
     /**
@@ -355,7 +377,12 @@ class MELCloudHomePlatform {
             clearTimeout(this.refreshTimeout);
         }
         this.refreshTimeout = setTimeout(async () => {
-            await this.refreshAllDevices();
+            try {
+                await this.refreshAllDevices();
+            }
+            catch (error) {
+                this.log.error('Scheduled refresh failed:', error instanceof Error ? error.message : String(error));
+            }
         }, 2000);
     }
     /**

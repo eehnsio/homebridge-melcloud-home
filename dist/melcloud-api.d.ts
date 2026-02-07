@@ -74,7 +74,9 @@ export declare class MELCloudAPI {
     private accessToken?;
     private tokenExpiry?;
     private currentRefreshToken?;
+    private refreshPromise?;
     private readonly CLIENT_AUTH;
+    private readonly httpsAgent;
     constructor(config: MELCloudConfig);
     /**
      * Check if access token is expired or about to expire
@@ -88,7 +90,12 @@ export declare class MELCloudAPI {
      * Ensure we have a valid access token
      */
     private ensureAuthenticated;
+    private static readonly RETRYABLE_STATUS_CODES;
+    private static readonly RETRYABLE_ERROR_CODES;
+    private static readonly MAX_RETRIES;
     private makeRequest;
+    private isRetryableError;
+    private getRetryDelay;
     /**
      * Execute the actual HTTP request
      */

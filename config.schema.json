@@ -6,7 +6,7 @@
   "headerDisplay": "To authenticate with MELCloud, click the **Settings** (⚙️) button above and follow the OAuth flow. After authentication, your settings will appear here.",
   "schema": {
     "type": "object",
-    "required": [],
+    "required": ["refreshToken"],
     "properties": {
       "name": {
         "title": "Name",

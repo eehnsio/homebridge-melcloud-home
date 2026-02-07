@@ -29,24 +29,23 @@ export class ConfigManager {
     try {
       this.log.debug(`Saving refresh token to config at: ${this.configPath}`);
 
-      // Check if config file exists
-      if (!fs.existsSync(this.configPath)) {
-        this.log.error(`Config file not found at: ${this.configPath}`);
-        return false;
-      }
-
-      // Check if we have write permissions
+      // Check if config file exists and is writable
       try {
-        fs.accessSync(this.configPath, fs.constants.W_OK);
-      } catch (error) {
-        this.log.error(`Config file is not writable: ${this.configPath}`);
+        await fs.promises.access(this.configPath, fs.constants.W_OK);
+      } catch {
+        this.log.error(`Config file not found or not writable: ${this.configPath}`);
         this.log.error('Check file permissions or run Homebridge as appropriate user');
         return false;
       }
 
       // Read current config
-      const configData = fs.readFileSync(this.configPath, 'utf8');
+      const configData = await fs.promises.readFile(this.configPath, 'utf8');
       const config = JSON.parse(configData);
+
+      if (!config || typeof config !== 'object' || Array.isArray(config)) {
+        this.log.error('Config file has invalid structure (not a JSON object)');
+        return false;
+      }
 
       // Find our platform config
       if (!config.platforms || !Array.isArray(config.platforms)) {
@@ -55,7 +54,7 @@ export class ConfigManager {
       }
 
       const platformIndex = config.platforms.findIndex(
-        (p: any) => p.platform === 'MELCloudHome',
+        (p: Record<string, unknown>) => p.platform === 'MELCloudHome',
       );
 
       if (platformIndex === -1) {
@@ -66,27 +65,24 @@ export class ConfigManager {
       // Update refresh token
       config.platforms[platformIndex].refreshToken = refreshToken;
 
-      // Optionally remove email/password for better security
-      if (config.platforms[platformIndex].email && config.platforms[platformIndex].password) {
-        this.log.info('💡 Removing email/password from config (keeping refresh token only)');
+      // Remove email/password for security (refresh token is sufficient)
+      if (config.platforms[platformIndex].email || config.platforms[platformIndex].password) {
+        this.log.warn('Removing stored email/password from config (refresh token authentication is used instead)');
         delete config.platforms[platformIndex].email;
         delete config.platforms[platformIndex].password;
       }
 
-      // Write back to file with nice formatting
-      fs.writeFileSync(
-        this.configPath,
-        JSON.stringify(config, null, 4),
-        'utf8',
-      );
+      // Write atomically: write to temp file, then rename over original
+      const tmpPath = this.configPath + '.tmp';
+      await fs.promises.writeFile(tmpPath, JSON.stringify(config, null, 4), 'utf8');
+      await fs.promises.rename(tmpPath, this.configPath);
 
       this.log.info('✅ Refresh token saved to config successfully!');
       this.log.info('   Future restarts will use the saved token automatically');
       return true;
     } catch (error) {
-      this.log.error('Failed to save refresh token to config:', error);
-      this.log.warn('   You can manually add it to your config.json:');
-      this.log.warn(`   "refreshToken": "${refreshToken.substring(0, 30)}..."`);
+      this.log.error('Failed to save refresh token to config:', error instanceof Error ? error.message : String(error));
+      this.log.warn('   Please re-authenticate via the plugin settings UI to obtain a new token');
       return false;
     }
   }

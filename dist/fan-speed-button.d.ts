@@ -7,6 +7,11 @@ import { AirToAirUnit } from './melcloud-api';
  * - ON: AC is powered on AND fan speed matches this button's speed
  * - Setting ON: Sets fan speed to this value (powers on AC if off)
  * - Setting OFF: Sets fan speed to Auto (doesn't power off AC)
+ *
+ * NOTE: The `device` reference is shared across all accessories (main AC,
+ * fan buttons, vane buttons) for the same physical device. Mutations to
+ * `device.settings` are visible to all accessories immediately, which is
+ * intentional for keeping cached state in sync without extra API calls.
  */
 export declare class FanSpeedButton {
     private readonly platform;
