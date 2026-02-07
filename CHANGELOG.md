@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2026-02-07
+
+### Improved
+- **API reliability** - Automatic retry with exponential backoff for transient failures (429, 5xx, network errors)
+- **Connection reuse** - HTTP keep-alive agent reduces latency and connection overhead
+- **Token refresh safety** - Concurrent refresh requests are now deduplicated to prevent race conditions
+- **Config file writes** - Now async and atomic (write-to-temp + rename) to prevent corruption
+- **Refresh loop** - Replaced interval with self-rescheduling timer to prevent overlapping cycles
+- **Error handling** - Consistent error logging throughout, all timers cleared on shutdown
+- **Fan/vane button power handling** - Turning off a button no longer forces the AC on
+- **Input validation** - Bounds checking on refresh interval, temperature values, and API responses
+- **TypeScript strictness** - Removed non-null assertions, narrowed types, reduced `any` usage
+
+### Fixed
+- OAuth state parameter now validated in callback
+- Cookie value parsing for values containing `=` characters
+- UI error display uses safe DOM methods instead of innerHTML
+- Config schema now marks `refreshToken` as required
+- Initial config template uses correct `vaneControl` field name
+- Unused imports removed from UI server
+
 ## [1.4.2] - 2026-02-04
 
 ### Changed
@@ -375,6 +396,7 @@ Initial release with cookie-based authentication.
 
 ---
 
+[1.4.3]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.3
 [1.4.2]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.2
 [1.4.1]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.1
 [1.4.0]: https://github.com/eehnsio/homebridge-melcloud-home/releases/tag/v1.4.0
