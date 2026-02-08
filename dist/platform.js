@@ -1,12 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MELCloudHomePlatform = void 0;
-const settings_1 = require("./settings");
-const melcloud_api_1 = require("./melcloud-api");
 const accessory_1 = require("./accessory");
-const fan_speed_button_1 = require("./fan-speed-button");
-const vane_button_1 = require("./vane-button");
 const config_manager_1 = require("./config-manager");
+const fan_speed_button_1 = require("./fan-speed-button");
+const melcloud_api_1 = require("./melcloud-api");
+const settings_1 = require("./settings");
+const vane_button_1 = require("./vane-button");
 class MELCloudHomePlatform {
     constructor(log, config, api) {
         this.log = log;
@@ -109,7 +109,7 @@ class MELCloudHomePlatform {
             for (const device of devices) {
                 // Main AC accessory
                 const uuid = this.api.hap.uuid.generate(device.id);
-                const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
+                const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
                 if (existingAccessory) {
                     // Update existing accessory
                     this.log.info('Restoring existing accessory from cache:', device.givenDisplayName);
@@ -144,7 +144,7 @@ class MELCloudHomePlatform {
                     }
                     for (const speedKey of speeds) {
                         const buttonUuid = this.api.hap.uuid.generate(`${device.id}-fan-${speedKey}`);
-                        const existingButton = this.accessories.find(accessory => accessory.UUID === buttonUuid);
+                        const existingButton = this.accessories.find((accessory) => accessory.UUID === buttonUuid);
                         const speedName = fan_speed_button_1.FanSpeedButton.SPEED_NAMES[fan_speed_button_1.FanSpeedButton.SPEED_API_VALUES[speedKey]] || speedKey;
                         if (existingButton) {
                             this.log.info(`Restoring Fan ${speedName} button from cache:`, device.givenDisplayName);
@@ -175,7 +175,7 @@ class MELCloudHomePlatform {
                     const positions = ['auto', 'swing']; // Auto and Swing buttons
                     for (const positionKey of positions) {
                         const buttonUuid = this.api.hap.uuid.generate(`${device.id}-vane-${positionKey}`);
-                        const existingButton = this.accessories.find(accessory => accessory.UUID === buttonUuid);
+                        const existingButton = this.accessories.find((accessory) => accessory.UUID === buttonUuid);
                         const positionName = vane_button_1.VaneButton.POSITION_NAMES[positionKey] || positionKey;
                         if (existingButton) {
                             this.log.info(`Restoring Vane ${positionName} button from cache:`, device.givenDisplayName);
@@ -200,12 +200,12 @@ class MELCloudHomePlatform {
                 }
             }
             // Remove accessories that no longer exist OR are disabled by config
-            const devicesIds = devices.map(d => d.id);
+            const devicesIds = devices.map((d) => d.id);
             const fanSpeedButtonsConfig = this.config.fanSpeedButtons || 'none';
             // Support new vaneControl and legacy vaneButtons
             const vaneControlConfig = this.config.vaneControl || this.config.vaneButtons || 'none';
             const vaneButtonsEnabled = vaneControlConfig === 'buttons' || vaneControlConfig === 'simple';
-            const accessoriesToRemove = this.accessories.filter(accessory => {
+            const accessoriesToRemove = this.accessories.filter((accessory) => {
                 const deviceId = accessory.context.device?.id;
                 // Remove if device no longer exists
                 if (!deviceId || !devicesIds.includes(deviceId)) {
@@ -324,7 +324,7 @@ class MELCloudHomePlatform {
         }
         return this.melcloudAPI;
     }
-    async refreshDevice(deviceId) {
+    async refreshDevice(_deviceId) {
         try {
             const devices = await this.getAPI().getAllDevices();
             // Update all device accessories from the same response to avoid redundant API calls
@@ -342,7 +342,7 @@ class MELCloudHomePlatform {
     updateDeviceAccessories(device) {
         // Update main AC accessory
         const uuid = this.api.hap.uuid.generate(device.id);
-        const accessory = this.accessories.find(acc => acc.UUID === uuid);
+        const accessory = this.accessories.find((acc) => acc.UUID === uuid);
         const accessoryInstance = this.accessoryInstances.get(uuid);
         if (accessory && accessoryInstance) {
             accessory.context.device = device;
@@ -351,7 +351,7 @@ class MELCloudHomePlatform {
         }
         // Update Fan Speed Buttons
         for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
-            const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+            const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
             if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
                 buttonAccessory.context.device = device;
                 this.api.updatePlatformAccessories([buttonAccessory]);
@@ -360,7 +360,7 @@ class MELCloudHomePlatform {
         }
         // Update Vane Buttons
         for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
-            const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+            const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
             if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
                 buttonAccessory.context.device = device;
                 this.api.updatePlatformAccessories([buttonAccessory]);
@@ -391,7 +391,7 @@ class MELCloudHomePlatform {
      */
     updateFanButtonsForDevice(device) {
         for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
-            const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+            const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
             // Check if this button belongs to the same device by comparing device IDs in context
             if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
                 buttonAccessory.context.device = device;
@@ -406,7 +406,7 @@ class MELCloudHomePlatform {
      */
     updateVaneButtonsForDevice(device) {
         for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
-            const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+            const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
             // Check if this button belongs to the same device by comparing device IDs in context
             if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
                 buttonAccessory.context.device = device;

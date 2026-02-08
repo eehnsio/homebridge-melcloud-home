@@ -5,7 +5,7 @@
  * It uses User-Agent spoofing to mimic the mobile app and automatically
  * obtains and refreshes tokens without user intervention.
  */
-import { Logger } from 'homebridge';
+import type { Logger } from 'homebridge';
 interface OAuthTokens {
     accessToken: string;
     refreshToken: string;

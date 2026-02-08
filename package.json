@@ -43,6 +43,7 @@
     "@homebridge/plugin-ui-utils": "^2.1.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.14",
     "@types/node": "^20.0.0",
     "homebridge": "^1.8.0",
     "typescript": "^5.0.0"

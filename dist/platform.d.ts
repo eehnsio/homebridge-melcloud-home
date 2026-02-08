@@ -1,5 +1,5 @@
-import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
-import { MELCloudAPI, AirToAirUnit } from './melcloud-api';
+import type { API, Characteristic, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
+import { type AirToAirUnit, MELCloudAPI } from './melcloud-api';
 export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     readonly log: Logger;
     readonly config: PlatformConfig;
@@ -29,7 +29,7 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     private startRefreshInterval;
     private refreshAllDevices;
     getAPI(): MELCloudAPI;
-    refreshDevice(deviceId: string): Promise<void>;
+    refreshDevice(_deviceId: string): Promise<void>;
     /**
      * Update all accessories (main AC, fan buttons, vane buttons) for a single device
      */

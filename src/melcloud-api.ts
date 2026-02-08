@@ -1,4 +1,4 @@
-import https from 'https';
+import https from 'node:https';
 
 export interface MELCloudConfig {
   refreshToken: string;
@@ -104,7 +104,6 @@ export class MELCloudAPI {
     this.currentRefreshToken = config.refreshToken;
   }
 
-
   /**
    * Check if access token is expired or about to expire
    */
@@ -114,7 +113,7 @@ export class MELCloudAPI {
     }
     // Refresh if token expires in less than 5 minutes
     const bufferTime = 5 * 60 * 1000; // 5 minutes
-    return Date.now() >= (this.tokenExpiry - bufferTime);
+    return Date.now() >= this.tokenExpiry - bufferTime;
   }
 
   /**
@@ -141,9 +140,9 @@ export class MELCloudAPI {
         timeout: 10000,
         agent: this.httpsAgent,
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': this.CLIENT_AUTH,
+          Authorization: this.CLIENT_AUTH,
           'User-Agent': 'MonitorAndControl.App.Mobile/35 CFNetwork/3860.100.1 Darwin/25.0.0',
           'Content-Length': Buffer.byteLength(formData.toString()).toString(),
         },
@@ -175,7 +174,7 @@ export class MELCloudAPI {
             }
             this.accessToken = tokenResponse.access_token;
             this.currentRefreshToken = tokenResponse.refresh_token;
-            this.tokenExpiry = Date.now() + (tokenResponse.expires_in * 1000);
+            this.tokenExpiry = Date.now() + tokenResponse.expires_in * 1000;
 
             this.config.debugLog?.('[MELCloud] Access token refreshed successfully');
             this.config.debugLog?.(`[MELCloud] Token expires in: ${tokenResponse.expires_in} seconds`);
@@ -188,7 +187,9 @@ export class MELCloudAPI {
 
             resolve();
           } catch (error) {
-            reject(new Error(`Failed to parse token response: ${error instanceof Error ? error.message : String(error)}`));
+            reject(
+              new Error(`Failed to parse token response: ${error instanceof Error ? error.message : String(error)}`),
+            );
           }
         });
       });
@@ -223,25 +224,19 @@ export class MELCloudAPI {
     }
   }
 
-
   private static readonly RETRYABLE_STATUS_CODES = [429, 500, 502, 503];
   private static readonly RETRYABLE_ERROR_CODES = ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND'];
   private static readonly MAX_RETRIES = 3;
 
-  private async makeRequest<T>(
-    method: string,
-    path: string,
-    data: unknown = null,
-    retryCount = 0,
-  ): Promise<T> {
+  private async makeRequest<T>(method: string, path: string, data: unknown = null, retryCount = 0): Promise<T> {
     // Ensure we have valid authentication
     await this.ensureAuthenticated();
 
     // Use mobile BFF API with Bearer token for all requests
     const hostname = 'mobile.bff.melcloudhome.com';
     const headers: Record<string, string> = {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${this.accessToken}`,
+      Accept: 'application/json',
+      Authorization: `Bearer ${this.accessToken}`,
       'User-Agent': 'MonitorAndControl.App.Mobile/35 CFNetwork/3860.100.1 Darwin/25.0.0',
     };
 
@@ -260,8 +255,10 @@ export class MELCloudAPI {
       // Retry on transient failures with exponential backoff
       if (retryCount < MELCloudAPI.MAX_RETRIES && this.isRetryableError(error)) {
         const delay = this.getRetryDelay(error, retryCount);
-        this.config.debugLog?.(`[MELCloud] Retryable error, attempt ${retryCount + 1}/${MELCloudAPI.MAX_RETRIES}, waiting ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        this.config.debugLog?.(
+          `[MELCloud] Retryable error, attempt ${retryCount + 1}/${MELCloudAPI.MAX_RETRIES}, waiting ${delay}ms...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
         return this.makeRequest<T>(method, path, data, retryCount + 1);
       }
 
@@ -293,11 +290,11 @@ export class MELCloudAPI {
     if (error instanceof Error && error.message.includes('HTTP 429')) {
       const retryAfterMatch = error.message.match(/Retry-After: (\d+)/);
       if (retryAfterMatch) {
-        return parseInt(retryAfterMatch[1]) * 1000;
+        return parseInt(retryAfterMatch[1], 10) * 1000;
       }
     }
     // Exponential backoff: 1s, 2s, 4s
-    return Math.pow(2, retryCount) * 1000;
+    return 2 ** retryCount * 1000;
   }
 
   /**
@@ -310,7 +307,6 @@ export class MELCloudAPI {
     headers: Record<string, string>,
     data: unknown = null,
   ): Promise<T> {
-
     return new Promise((resolve, reject) => {
       const options: https.RequestOptions = {
         hostname,
@@ -429,5 +425,4 @@ export class MELCloudAPI {
     }
     return parsed;
   }
-
 }

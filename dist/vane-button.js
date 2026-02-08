@@ -17,16 +17,19 @@ class VaneButton {
         this.device = accessory.context.device;
         const positionName = VaneButton.POSITION_NAMES[this.positionKey] || this.positionKey;
         // Set accessory information
-        this.accessory.getService(this.platform.Service.AccessoryInformation)
+        this.accessory
+            .getService(this.platform.Service.AccessoryInformation)
             ?.setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
             .setCharacteristic(this.platform.Characteristic.Model, 'MELCloud Vane Button')
             .setCharacteristic(this.platform.Characteristic.SerialNumber, `${this.device.connectedInterfaceIdentifier}-vane-${positionKey}`);
         // Get or create the Switch service
-        this.service = this.accessory.getService(this.platform.Service.Switch) ||
-            this.accessory.addService(this.platform.Service.Switch);
+        this.service =
+            this.accessory.getService(this.platform.Service.Switch) ||
+                this.accessory.addService(this.platform.Service.Switch);
         this.service.setCharacteristic(this.platform.Characteristic.Name, `${this.device.givenDisplayName} Vane ${positionName}`);
         // On/Off control
-        this.service.getCharacteristic(this.platform.Characteristic.On)
+        this.service
+            .getCharacteristic(this.platform.Characteristic.On)
             .onGet(this.getOn.bind(this))
             .onSet(this.setOn.bind(this));
     }
@@ -89,7 +92,7 @@ class VaneButton {
                 inStandbyMode: null,
             });
             // Update cached state
-            const updatedSettings = this.device.settings.map(setting => {
+            const updatedSettings = this.device.settings.map((setting) => {
                 if (setting.name === 'VaneVerticalDirection') {
                     return { ...setting, value: vaneDirection };
                 }
@@ -124,12 +127,12 @@ class VaneButton {
 exports.VaneButton = VaneButton;
 // Vane position mapping
 VaneButton.POSITION_NAMES = {
-    'auto': 'Auto',
-    'swing': 'Swing',
+    auto: 'Auto',
+    swing: 'Swing',
 };
 // API values for each position
 VaneButton.POSITION_API_VALUES = {
-    'auto': 'Auto',
-    'swing': 'Swing', // Position 7 = Swing mode (oscillating)
+    auto: 'Auto',
+    swing: 'Swing', // Position 7 = Swing mode (oscillating)
 };
 //# sourceMappingURL=vane-button.js.map

@@ -1,6 +1,6 @@
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
-const crypto = require('crypto');
-const https = require('https');
+const crypto = require('node:crypto');
+const https = require('node:https');
 
 class PluginUiServer extends HomebridgePluginUiServer {
   constructor() {
@@ -36,14 +36,15 @@ class PluginUiServer extends HomebridgePluginUiServer {
         success: true,
         message: 'Login successful! Refresh token obtained.',
         refreshToken: tokens.refreshToken,
-        instructions: 'Copy the token below and paste it in the "Refresh Token" field in the plugin configuration, then click Save.'
+        instructions:
+          'Copy the token below and paste it in the "Refresh Token" field in the plugin configuration, then click Save.',
       };
     } catch (error) {
       console.error('[MELCloudHome UI] Login error:', error);
       console.error('[MELCloudHome UI] Error stack:', error.stack);
       return {
         success: false,
-        error: error.message || 'Login failed. Please check your credentials.'
+        error: error.message || 'Login failed. Please check your credentials.',
       };
     }
   }
@@ -54,20 +55,23 @@ class PluginUiServer extends HomebridgePluginUiServer {
    */
   async getTokensViaCurl(email, password) {
     // Use Safari user agent - the mobile app opens OAuth in a Safari WebView, not via CFNetwork
-    const MOBILE_USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1';
+    const MOBILE_USER_AGENT =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1';
     const CLIENT_ID = 'homemobile';
     const REDIRECT_URI = 'melcloudhome://';
     const SCOPE = 'openid profile email offline_access IdentityServerApi';
 
     // Generate PKCE (RFC 7636 compliant - base64url encoding)
     // Base64url: replace + with -, / with _, remove = padding
-    const codeVerifier = crypto.randomBytes(32)
+    const codeVerifier = crypto
+      .randomBytes(32)
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=/g, '');
 
-    const codeChallenge = crypto.createHash('sha256')
+    const codeChallenge = crypto
+      .createHash('sha256')
       .update(codeVerifier)
       .digest('base64')
       .replace(/\+/g, '-')
@@ -77,7 +81,8 @@ class PluginUiServer extends HomebridgePluginUiServer {
     const state = crypto.randomBytes(32).toString('hex');
 
     // Build auth URL
-    const authUrl = `https://auth.melcloudhome.com/connect/authorize?` +
+    const authUrl =
+      `https://auth.melcloudhome.com/connect/authorize?` +
       `client_id=${CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
       `response_type=code&` +
@@ -89,11 +94,15 @@ class PluginUiServer extends HomebridgePluginUiServer {
     console.log('[OAuth cURL] Step 1: Getting login page...');
 
     // Step 1: Get login page and follow redirects (mimics curl -L)
-    const { html: loginPage, cookies, finalUrl } = await this.curlRequest(authUrl, {
+    const {
+      html: loginPage,
+      cookies,
+      finalUrl,
+    } = await this.curlRequest(authUrl, {
       method: 'GET',
       headers: {
         'User-Agent': MOBILE_USER_AGENT,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
       },
     });
@@ -111,14 +120,19 @@ class PluginUiServer extends HomebridgePluginUiServer {
     console.log('[OAuth cURL] Cookies before login POST:', cookies.length, 'cookies');
     const formData = `_csrf=${encodeURIComponent(csrf)}&username=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`;
 
-    const { html: loginResponse, headers: loginHeaders, finalUrl: callbackUrl, cookies: updatedCookies } = await this.curlRequest(finalUrl, {
+    const {
+      html: loginResponse,
+      headers: loginHeaders,
+      finalUrl: callbackUrl,
+      cookies: updatedCookies,
+    } = await this.curlRequest(finalUrl, {
       method: 'POST',
       headers: {
         'User-Agent': MOBILE_USER_AGENT,
         'Content-Type': 'application/x-www-form-urlencoded',
         'Content-Length': formData.length,
-        'Origin': 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
-        'Referer': finalUrl,
+        Origin: 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
+        Referer: finalUrl,
       },
       body: formData,
       cookies: cookies, // Pass cookies array - will be maintained across all redirects
@@ -129,7 +143,9 @@ class PluginUiServer extends HomebridgePluginUiServer {
       console.log('[OAuth cURL] ❌ Did not get melcloudhome:// redirect');
       console.log('[OAuth cURL] Final URL:', callbackUrl);
       console.log('[OAuth cURL] Response preview:', loginResponse.substring(0, 500));
-      throw new Error('OAuth flow failed - did not receive app redirect. The signin-oidc-meu endpoint may have failed.');
+      throw new Error(
+        'OAuth flow failed - did not receive app redirect. The signin-oidc-meu endpoint may have failed.',
+      );
     }
 
     // Validate state parameter to prevent CSRF attacks
@@ -152,7 +168,8 @@ class PluginUiServer extends HomebridgePluginUiServer {
     console.log('[OAuth cURL] Step 3: Exchanging code for tokens...');
 
     // Step 3: Exchange code for tokens
-    const tokenData = `grant_type=authorization_code&` +
+    const tokenData =
+      `grant_type=authorization_code&` +
       `code=${encodeURIComponent(authCode)}&` +
       `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
       `client_id=${CLIENT_ID}&` +
@@ -162,7 +179,7 @@ class PluginUiServer extends HomebridgePluginUiServer {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic aG9tZW1vYmlsZTo=',
+        Authorization: 'Basic aG9tZW1vYmlsZTo=',
       },
       body: tokenData,
       followRedirects: false,
@@ -198,7 +215,7 @@ class PluginUiServer extends HomebridgePluginUiServer {
     // Helper: Parse Set-Cookie header
     function parseCookie(setCookieHeader, requestUrl) {
       const urlObj = new URL(requestUrl);
-      const parts = setCookieHeader.split(';').map(p => p.trim());
+      const parts = setCookieHeader.split(';').map((p) => p.trim());
       const eqIndex = parts[0].indexOf('=');
       const name = parts[0].substring(0, eqIndex);
       const value = parts[0].substring(eqIndex + 1);
@@ -206,12 +223,12 @@ class PluginUiServer extends HomebridgePluginUiServer {
       const cookie = { name, value, domain: urlObj.hostname, path: '/', expires: null };
 
       for (let i = 1; i < parts.length; i++) {
-        const [key, val] = parts[i].split('=').map(p => p?.trim());
+        const [key, val] = parts[i].split('=').map((p) => p?.trim());
         if (key.toLowerCase() === 'path') cookie.path = val || '/';
         if (key.toLowerCase() === 'domain') cookie.domain = val;
         if (key.toLowerCase() === 'expires') cookie.expires = new Date(val);
         if (key.toLowerCase() === 'max-age') {
-          const maxAge = parseInt(val);
+          const maxAge = parseInt(val, 10);
           cookie.expires = new Date(Date.now() + maxAge * 1000);
         }
       }
@@ -224,12 +241,12 @@ class PluginUiServer extends HomebridgePluginUiServer {
       if (!setCookieHeaders) return;
       const headers = Array.isArray(setCookieHeaders) ? setCookieHeaders : [setCookieHeaders];
 
-      headers.forEach(header => {
+      headers.forEach((header) => {
         const cookie = parseCookie(header, requestUrl);
 
         // Check if cookie should be deleted (expired)
         if (cookie.expires && cookie.expires < new Date()) {
-          const index = cookieJar.findIndex(c => c.name === cookie.name && c.path === cookie.path);
+          const index = cookieJar.findIndex((c) => c.name === cookie.name && c.path === cookie.path);
           if (index !== -1) {
             cookieJar.splice(index, 1);
             console.log('[OAuth cURL] Deleted cookie:', cookie.name, 'path:', cookie.path);
@@ -238,7 +255,9 @@ class PluginUiServer extends HomebridgePluginUiServer {
         }
 
         // Update or add cookie
-        const index = cookieJar.findIndex(c => c.name === cookie.name && c.path === cookie.path && c.domain === cookie.domain);
+        const index = cookieJar.findIndex(
+          (c) => c.name === cookie.name && c.path === cookie.path && c.domain === cookie.domain,
+        );
         if (index !== -1) {
           cookieJar[index] = cookie;
         } else {
@@ -252,7 +271,7 @@ class PluginUiServer extends HomebridgePluginUiServer {
       const urlObj = new URL(url);
       const now = new Date();
 
-      const validCookies = cookieJar.filter(cookie => {
+      const validCookies = cookieJar.filter((cookie) => {
         // Check expiration
         if (cookie.expires && cookie.expires < now) return false;
 
@@ -266,7 +285,7 @@ class PluginUiServer extends HomebridgePluginUiServer {
       });
 
       if (validCookies.length === 0) return null;
-      return validCookies.map(c => `${c.name}=${c.value}`).join('; ');
+      return validCookies.map((c) => `${c.name}=${c.value}`).join('; ');
     }
 
     return new Promise((resolve, reject) => {
@@ -280,32 +299,33 @@ class PluginUiServer extends HomebridgePluginUiServer {
         const urlObj = new URL(currentUrl);
 
         // For redirects, change POST to GET
-        const method = (redirectCount > 0) ? 'GET' : (options.method || 'GET');
+        const method = redirectCount > 0 ? 'GET' : options.method || 'GET';
 
         // Strip Cognito URLs to origin only for Referer
         let refererUrl = previousUrl;
-        if (refererUrl && refererUrl.includes('amazoncognito.com')) {
+        if (refererUrl?.includes('amazoncognito.com')) {
           const refererUrlObj = new URL(refererUrl);
           refererUrl = `${refererUrlObj.origin}/`;
         }
 
         // Determine cross-site
-        const effectivePreviousUrl = keepCognitoReferer && previousUrl ? previousUrl : (previousUrl || currentUrl);
-        const isCrossSite = previousUrl && redirectCount > 0 &&
-          new URL(effectivePreviousUrl).hostname !== urlObj.hostname;
+        const effectivePreviousUrl = keepCognitoReferer && previousUrl ? previousUrl : previousUrl || currentUrl;
+        const isCrossSite =
+          previousUrl && redirectCount > 0 && new URL(effectivePreviousUrl).hostname !== urlObj.hostname;
 
-        const headers = redirectCount > 0
-          ? {
-              'User-Agent': options.headers?.['User-Agent'] || 'Mozilla/5.0',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.9',
-              'Sec-Fetch-Site': isCrossSite ? 'cross-site' : 'same-origin',
-              'Sec-Fetch-Mode': 'navigate',
-              'Sec-Fetch-Dest': 'document',
-              'Priority': 'u=0, i',
-              ...(refererUrl && { 'Referer': refererUrl }),
-            }
-          : { ...options.headers };
+        const headers =
+          redirectCount > 0
+            ? {
+                'User-Agent': options.headers?.['User-Agent'] || 'Mozilla/5.0',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Sec-Fetch-Site': isCrossSite ? 'cross-site' : 'same-origin',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Dest': 'document',
+                Priority: 'u=0, i',
+                ...(refererUrl && { Referer: refererUrl }),
+              }
+            : { ...options.headers };
 
         const reqOptions = {
           hostname: urlObj.hostname,
@@ -317,7 +337,7 @@ class PluginUiServer extends HomebridgePluginUiServer {
         // Add cookies
         const cookieHeader = getCookiesForUrl(currentUrl);
         if (cookieHeader) {
-          reqOptions.headers['Cookie'] = cookieHeader;
+          reqOptions.headers.Cookie = cookieHeader;
         }
 
         // Debug for ExternalLogin/Callback
@@ -336,7 +356,7 @@ class PluginUiServer extends HomebridgePluginUiServer {
           updateCookieJar(res.headers['set-cookie'], currentUrl);
 
           let data = '';
-          res.on('data', chunk => data += chunk);
+          res.on('data', (chunk) => (data += chunk));
           res.on('end', () => {
             // Handle redirects (unless explicitly disabled)
             if (options.followRedirects !== false && [301, 302, 303].includes(res.statusCode)) {
@@ -347,7 +367,7 @@ class PluginUiServer extends HomebridgePluginUiServer {
               const location = res.headers.location;
 
               // Check if we got melcloudhome:// redirect
-              if (location && location.startsWith('melcloudhome://')) {
+              if (location?.startsWith('melcloudhome://')) {
                 console.log('[OAuth cURL] ✓ Got melcloudhome:// redirect!');
                 return resolve({
                   statusCode: res.statusCode,
@@ -396,52 +416,62 @@ class PluginUiServer extends HomebridgePluginUiServer {
                     ? redirectUrl
                     : `https://auth.melcloudhome.com${redirectUrl}`;
 
-                  const metaReq = https.request({
-                    hostname: 'auth.melcloudhome.com',
-                    path: redirectUrl,
-                    method: 'GET',
-                    headers: {
-                      'Host': 'auth.melcloudhome.com',
-                      'User-Agent': options.headers?.['User-Agent'] || 'Mozilla/5.0',
-                      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                      'Accept-Language': 'en-US,en;q=0.9',
-                      'Referer': 'https://auth.melcloudhome.com/Redirect',  // Browser would send /Redirect as referer!
-                      'Connection': 'keep-alive',
-                      'Upgrade-Insecure-Requests': '1',
-                      'Sec-Fetch-Site': 'same-origin',  // Same origin since both are auth.melcloudhome.com
-                      'Sec-Fetch-Mode': 'navigate',
-                      'Sec-Fetch-Dest': 'document',
-                      'Priority': 'u=0, i',
-                      'Cookie': getCookiesForUrl(metaUrl),
+                  const metaReq = https.request(
+                    {
+                      hostname: 'auth.melcloudhome.com',
+                      path: redirectUrl,
+                      method: 'GET',
+                      headers: {
+                        Host: 'auth.melcloudhome.com',
+                        'User-Agent': options.headers?.['User-Agent'] || 'Mozilla/5.0',
+                        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        Referer: 'https://auth.melcloudhome.com/Redirect', // Browser would send /Redirect as referer!
+                        Connection: 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                        'Sec-Fetch-Site': 'same-origin', // Same origin since both are auth.melcloudhome.com
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-Dest': 'document',
+                        Priority: 'u=0, i',
+                        Cookie: getCookiesForUrl(metaUrl),
+                      },
                     },
-                  }, (metaRes) => {
-                    console.log('[OAuth cURL] Meta refresh response status:', metaRes.statusCode);
-                    console.log('[OAuth cURL] Meta refresh location:', metaRes.headers.location);
+                    (metaRes) => {
+                      console.log('[OAuth cURL] Meta refresh response status:', metaRes.statusCode);
+                      console.log('[OAuth cURL] Meta refresh location:', metaRes.headers.location);
 
-                    // Check if we got a redirect to melcloudhome://
-                    if (metaRes.statusCode === 302 && metaRes.headers.location && metaRes.headers.location.startsWith('melcloudhome://')) {
-                      const locationUrl = metaRes.headers.location;
-                      console.log('[OAuth cURL] ✓ SUCCESS! Got melcloudhome:// redirect:', locationUrl.substring(0, 80));
+                      // Check if we got a redirect to melcloudhome://
+                      if (
+                        metaRes.statusCode === 302 &&
+                        metaRes.headers.location &&
+                        metaRes.headers.location.startsWith('melcloudhome://')
+                      ) {
+                        const locationUrl = metaRes.headers.location;
+                        console.log(
+                          '[OAuth cURL] ✓ SUCCESS! Got melcloudhome:// redirect:',
+                          locationUrl.substring(0, 80),
+                        );
 
-                      return resolve({
-                        statusCode: metaRes.statusCode,
-                        headers: metaRes.headers,
-                        html: '',
-                        cookies: cookieJar,
-                        finalUrl: locationUrl,
-                      });
-                    } else {
-                      // Not a melcloudhome:// redirect, read body
-                      let metaData = '';
-                      metaRes.on('data', chunk => metaData += chunk);
-                      metaRes.on('end', () => {
-                        console.log('[OAuth cURL] ❌ Did not get melcloudhome:// redirect');
-                        console.log('[OAuth cURL] Response length:', metaData.length);
-                        console.log('[OAuth cURL] Response preview:', metaData.substring(0, 500));
-                        reject(new Error('Did not get melcloudhome:// redirect from meta refresh'));
-                      });
-                    }
-                  });
+                        return resolve({
+                          statusCode: metaRes.statusCode,
+                          headers: metaRes.headers,
+                          html: '',
+                          cookies: cookieJar,
+                          finalUrl: locationUrl,
+                        });
+                      } else {
+                        // Not a melcloudhome:// redirect, read body
+                        let metaData = '';
+                        metaRes.on('data', (chunk) => (metaData += chunk));
+                        metaRes.on('end', () => {
+                          console.log('[OAuth cURL] ❌ Did not get melcloudhome:// redirect');
+                          console.log('[OAuth cURL] Response length:', metaData.length);
+                          console.log('[OAuth cURL] Response preview:', metaData.substring(0, 500));
+                          reject(new Error('Did not get melcloudhome:// redirect from meta refresh'));
+                        });
+                      }
+                    },
+                  );
 
                   metaReq.on('error', reject);
                   metaReq.end();

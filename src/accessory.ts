@@ -1,6 +1,6 @@
-import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
-import { MELCloudHomePlatform } from './platform';
-import { AirToAirUnit, MELCloudAPI } from './melcloud-api';
+import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
+import { type AirToAirUnit, MELCloudAPI } from './melcloud-api';
+import type { MELCloudHomePlatform } from './platform';
 
 interface MELCloudContext {
   device: AirToAirUnit;
@@ -32,30 +32,36 @@ export class MELCloudAccessory {
     this.coolingThreshold = accessory.context.coolingThreshold;
 
     // Set accessory information
-    this.accessory.getService(this.platform.Service.AccessoryInformation)
+    this.accessory
+      .getService(this.platform.Service.AccessoryInformation)
       ?.setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
       .setCharacteristic(this.platform.Characteristic.Model, 'MELCloud Home')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, this.device.connectedInterfaceIdentifier);
 
     // Get or create the HeaterCooler service
-    this.service = this.accessory.getService(this.platform.Service.HeaterCooler) ||
+    this.service =
+      this.accessory.getService(this.platform.Service.HeaterCooler) ||
       this.accessory.addService(this.platform.Service.HeaterCooler);
 
     this.service.setCharacteristic(this.platform.Characteristic.Name, this.device.givenDisplayName);
 
     // Register handlers
-    this.service.getCharacteristic(this.platform.Characteristic.Active)
+    this.service
+      .getCharacteristic(this.platform.Characteristic.Active)
       .onGet(this.getActive.bind(this))
       .onSet(this.setActive.bind(this));
 
-    this.service.getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState)
+    this.service
+      .getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState)
       .onGet(this.getCurrentState.bind(this));
 
-    this.service.getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState)
+    this.service
+      .getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState)
       .onGet(this.getTargetState.bind(this))
       .onSet(this.setTargetState.bind(this));
 
-    this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+    this.service
+      .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
       .onGet(this.getCurrentTemperature.bind(this));
 
     // HomeKit has strict minimum values for temperature thresholds
@@ -94,7 +100,8 @@ export class MELCloudAccessory {
     // Optional: Rotation Speed for fan speed
     // We use 1-6 range (Auto=1, One=2, ..., Five=6) to avoid HomeKit treating 0 as "off"
     if (this.device.capabilities.numberOfFanSpeeds > 0) {
-      this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed)
+      this.service
+        .getCharacteristic(this.platform.Characteristic.RotationSpeed)
         .setProps({
           minValue: 1,
           maxValue: this.device.capabilities.numberOfFanSpeeds + 1, // +1 because we shifted range
@@ -110,7 +117,8 @@ export class MELCloudAccessory {
     const exposeTemperatureSensor = this.platform.config.exposeTemperatureSensor !== false; // Default true
 
     if (exposeTemperatureSensor) {
-      this.temperatureSensor = this.accessory.getService(this.platform.Service.TemperatureSensor) ||
+      this.temperatureSensor =
+        this.accessory.getService(this.platform.Service.TemperatureSensor) ||
         this.accessory.addService(this.platform.Service.TemperatureSensor);
 
       this.temperatureSensor.setCharacteristic(
@@ -118,7 +126,8 @@ export class MELCloudAccessory {
         `${this.device.givenDisplayName} Temperature`,
       );
 
-      this.temperatureSensor.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+      this.temperatureSensor
+        .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
         .onGet(this.getCurrentTemperature.bind(this));
     } else {
       // Remove temperature sensor if it exists but is now disabled
@@ -130,10 +139,10 @@ export class MELCloudAccessory {
 
     // Clean up old/deprecated services (vane control is now handled by separate VaneButton accessories)
     const servicesToRemove = [
-      this.accessory.getService(this.platform.Service.Fan),        // Old fan service
-      this.accessory.getService(this.platform.Service.Slat),       // Old slat service
-      this.accessory.getService('swing-control'),                  // Old swing switch
-      this.accessory.getService('vane-control'),                   // Old vane slider
+      this.accessory.getService(this.platform.Service.Fan), // Old fan service
+      this.accessory.getService(this.platform.Service.Slat), // Old slat service
+      this.accessory.getService('swing-control'), // Old swing switch
+      this.accessory.getService('vane-control'), // Old vane slider
     ];
     for (const svc of servicesToRemove) {
       if (svc) {
@@ -151,7 +160,10 @@ export class MELCloudAccessory {
       try {
         this.updateCharacteristics();
       } catch (error) {
-        this.platform.log.error(`[${this.device.givenDisplayName}] Initial characteristic update failed:`, error instanceof Error ? error.message : String(error));
+        this.platform.log.error(
+          `[${this.device.givenDisplayName}] Initial characteristic update failed:`,
+          error instanceof Error ? error.message : String(error),
+        );
       }
     });
   }
@@ -184,14 +196,26 @@ export class MELCloudAccessory {
     // Convert fan speed to number for logging (handle both text and numeric formats)
     // IMPORTANT: We use 1-6 instead of 0-5 because HomeKit treats rotation speed 0 as "turn off"
     const reverseSpeedMap: Record<string, number> = {
-      'Auto': 1, 'One': 2, 'Two': 3, 'Three': 4, 'Four': 5, 'Five': 6,
-      '0': 1, '1': 2, '2': 3, '3': 4, '4': 5, '5': 6,
+      Auto: 1,
+      One: 2,
+      Two: 3,
+      Three: 4,
+      Four: 5,
+      Five: 6,
+      '0': 1,
+      '1': 2,
+      '2': 3,
+      '3': 4,
+      '4': 5,
+      '5': 6,
     };
-    const currentFanSpeed = reverseSpeedMap[settings.SetFanSpeed] ?? 1;
+    const _currentFanSpeed = reverseSpeedMap[settings.SetFanSpeed] ?? 1;
 
     // Don't send command if the state is already correct
     if ((power && settings.Power === 'True') || (!power && settings.Power === 'False')) {
-      this.platform.log.info(`[${this.device.givenDisplayName}] Active state already matches (${settings.Power}), skipping command`);
+      this.platform.log.info(
+        `[${this.device.givenDisplayName}] Active state already matches (${settings.Power}), skipping command`,
+      );
       return;
     }
 
@@ -202,12 +226,17 @@ export class MELCloudAccessory {
       // Convert numeric fan speed back to text format for API
       // API returns numbers but expects text input
       const speedToTextMap: Record<string, string> = {
-        '0': 'Auto', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five',
+        '0': 'Auto',
+        '1': 'One',
+        '2': 'Two',
+        '3': 'Three',
+        '4': 'Four',
+        '5': 'Five',
       };
       const fanSpeedForAPI = speedToTextMap[settings.SetFanSpeed] || settings.SetFanSpeed;
 
       // If powering on and there's a pending mode change, apply it now
-      const operationMode = (power && this.pendingMode) ? this.pendingMode : settings.OperationMode;
+      const operationMode = power && this.pendingMode ? this.pendingMode : settings.OperationMode;
       if (power && this.pendingMode) {
         this.platform.log.info(`[${this.device.givenDisplayName}] Applying pending mode change: ${this.pendingMode}`);
         this.pendingMode = undefined; // Clear after use
@@ -228,10 +257,12 @@ export class MELCloudAccessory {
 
       // Optimistically update the cached state immediately for responsive HomeKit UI
       // This prevents HomeKit from reverting the UI while waiting for API confirmation
-      this.platform.debugLog(`[${this.device.givenDisplayName}] Power command sent successfully, updating HomeKit state immediately`);
+      this.platform.debugLog(
+        `[${this.device.givenDisplayName}] Power command sent successfully, updating HomeKit state immediately`,
+      );
 
       // Update the cached device settings to reflect the new power state
-      const updatedSettings = this.device.settings.map(setting => {
+      const updatedSettings = this.device.settings.map((setting) => {
         if (setting.name === 'Power') {
           return { ...setting, value: power ? 'True' : 'False' };
         }
@@ -243,10 +274,7 @@ export class MELCloudAccessory {
       this.device.settings = updatedSettings;
 
       // Update HomeKit characteristic immediately so UI responds
-      this.service.updateCharacteristic(
-        this.platform.Characteristic.Active,
-        power ? 1 : 0,
-      );
+      this.service.updateCharacteristic(this.platform.Characteristic.Active, power ? 1 : 0);
 
       // Immediately update ALL buttons (fan + vane) for instant UI response
       // Buttons show ON only when AC is ON + correct setting
@@ -257,7 +285,10 @@ export class MELCloudAccessory {
     } catch (error) {
       // Revert optimistic state on failure
       this.device.settings = previousSettings;
-      this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set power:`, error instanceof Error ? error.message : String(error));
+      this.platform.log.error(
+        `[${this.device.givenDisplayName}] Failed to set power:`,
+        error instanceof Error ? error.message : String(error),
+      );
       throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
   }
@@ -277,7 +308,7 @@ export class MELCloudAccessory {
         case 'Heat': {
           const roomTemp = parseFloat(settings.RoomTemperature);
           const targetTemp = parseFloat(settings.SetTemperature);
-          if (isNaN(roomTemp) || isNaN(targetTemp)) {
+          if (Number.isNaN(roomTemp) || Number.isNaN(targetTemp)) {
             return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
           }
           // Only show heating if room is below target
@@ -288,7 +319,7 @@ export class MELCloudAccessory {
         case 'Cool': {
           const roomTemp = parseFloat(settings.RoomTemperature);
           const targetTemp = parseFloat(settings.SetTemperature);
-          if (isNaN(roomTemp) || isNaN(targetTemp)) {
+          if (Number.isNaN(roomTemp) || Number.isNaN(targetTemp)) {
             return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
           }
           // Only show cooling if room is above target
@@ -296,11 +327,11 @@ export class MELCloudAccessory {
             ? this.platform.Characteristic.CurrentHeaterCoolerState.COOLING
             : this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
         }
-        case 'Automatic':  // Auto mode - infer state from room temp vs target
+        case 'Automatic': // Auto mode - infer state from room temp vs target
         case 'Auto': {
           const roomTemp = parseFloat(settings.RoomTemperature);
           const targetTemp = parseFloat(settings.SetTemperature);
-          if (isNaN(roomTemp) || isNaN(targetTemp)) {
+          if (Number.isNaN(roomTemp) || Number.isNaN(targetTemp)) {
             return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
           }
 
@@ -313,8 +344,6 @@ export class MELCloudAccessory {
           }
           return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
         }
-        case 'Fan':  // Fan mode - just circulating air, not heating/cooling
-        case 'Dry':  // Dry mode - dehumidifying, treat as idle
         default:
           return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
       }
@@ -335,8 +364,6 @@ export class MELCloudAccessory {
           return this.platform.Characteristic.TargetHeaterCoolerState.HEAT;
         case 'Cool':
           return this.platform.Characteristic.TargetHeaterCoolerState.COOL;
-        case 'Automatic':  // API returns 'Automatic'
-        case 'Auto':       // Also support 'Auto' for backwards compatibility
         default:
           return this.platform.Characteristic.TargetHeaterCoolerState.AUTO;
       }
@@ -356,9 +383,8 @@ export class MELCloudAccessory {
       case this.platform.Characteristic.TargetHeaterCoolerState.COOL:
         mode = 'Cool';
         break;
-      case this.platform.Characteristic.TargetHeaterCoolerState.AUTO:
       default:
-        mode = 'Automatic';  // API uses 'Automatic' not 'Auto'
+        mode = 'Automatic'; // API uses 'Automatic' not 'Auto'
         break;
     }
 
@@ -393,7 +419,7 @@ export class MELCloudAccessory {
 
       // Optimistically update cached state immediately
       this.platform.debugLog(`[${this.device.givenDisplayName}] Mode command sent successfully, updating cache`);
-      const updatedSettings = this.device.settings.map(setting => {
+      const updatedSettings = this.device.settings.map((setting) => {
         if (setting.name === 'OperationMode') {
           return { ...setting, value: mode };
         }
@@ -404,7 +430,10 @@ export class MELCloudAccessory {
       // Refresh device state after command (debounced to prevent API spam)
       this.scheduleRefresh();
     } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set mode:`, error instanceof Error ? error.message : String(error));
+      this.platform.log.error(
+        `[${this.device.givenDisplayName}] Failed to set mode:`,
+        error instanceof Error ? error.message : String(error),
+      );
       throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
   }
@@ -415,8 +444,10 @@ export class MELCloudAccessory {
       const settings = this.getSettings();
       const temp = parseFloat(settings.RoomTemperature);
       // Validate temperature is a reasonable value
-      if (isNaN(temp) || temp < -40 || temp > 60) {
-        this.platform.log.warn(`[${this.device.givenDisplayName}] Invalid temperature: ${settings.RoomTemperature}, using cached value`);
+      if (Number.isNaN(temp) || temp < -40 || temp > 60) {
+        this.platform.log.warn(
+          `[${this.device.givenDisplayName}] Invalid temperature: ${settings.RoomTemperature}, using cached value`,
+        );
         const cached = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
         return (cached as number) ?? 20;
       }
@@ -441,7 +472,7 @@ export class MELCloudAccessory {
       }
 
       // In other modes (Heat/Cool/Fan/Dry), return actual device setpoint
-      return isNaN(currentTemp) ? 24 : currentTemp;
+      return Number.isNaN(currentTemp) ? 24 : currentTemp;
     } catch (error) {
       this.platform.log.error(`[${this.device.givenDisplayName}] Error in getCoolingThresholdTemperature:`, error);
       return this.coolingThreshold ?? 24;
@@ -481,7 +512,7 @@ export class MELCloudAccessory {
       }
 
       // In other modes (Heat/Cool/Fan/Dry), return actual device setpoint
-      return isNaN(currentTemp) ? 20 : currentTemp;
+      return Number.isNaN(currentTemp) ? 20 : currentTemp;
     } catch (error) {
       this.platform.log.error(`[${this.device.givenDisplayName}] Error in getHeatingThresholdTemperature:`, error);
       return this.heatingThreshold ?? 20;
@@ -523,7 +554,7 @@ export class MELCloudAccessory {
 
     this.platform.log.info(
       `[${this.device.givenDisplayName}] AUTO mode: Heating ${this.heatingThreshold}°C, ` +
-      `Cooling ${this.coolingThreshold}°C → Sending midpoint ${midpoint.toFixed(1)}°C to device`
+        `Cooling ${this.coolingThreshold}°C → Sending midpoint ${midpoint.toFixed(1)}°C to device`,
     );
 
     // Send the midpoint temperature to the device
@@ -553,7 +584,7 @@ export class MELCloudAccessory {
 
       // Optimistically update cached state immediately
       this.platform.debugLog(`[${this.device.givenDisplayName}] Temperature command sent successfully, updating cache`);
-      const updatedSettings = this.device.settings.map(setting => {
+      const updatedSettings = this.device.settings.map((setting) => {
         if (setting.name === 'SetTemperature') {
           return { ...setting, value: temp.toString() };
         }
@@ -564,7 +595,10 @@ export class MELCloudAccessory {
       // Refresh device state after command (debounced to prevent API spam)
       this.scheduleRefresh();
     } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set temperature:`, error instanceof Error ? error.message : String(error));
+      this.platform.log.error(
+        `[${this.device.givenDisplayName}] Failed to set temperature:`,
+        error instanceof Error ? error.message : String(error),
+      );
       throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
   }
@@ -579,12 +613,12 @@ export class MELCloudAccessory {
       // IMPORTANT: We use 1-6 instead of 0-5 because HomeKit treats rotation speed 0 as "turn off"
       // So we shift everything up by 1: Auto=1, One=2, Two=3, etc.
       const reverseSpeedMap: Record<string, number> = {
-        'Auto': 1,  // Shifted from 0 to 1
-        'One': 2,   // Shifted from 1 to 2
-        'Two': 3,   // Shifted from 2 to 3
-        'Three': 4, // Shifted from 3 to 4
-        'Four': 5,  // Shifted from 4 to 5
-        'Five': 6,  // Shifted from 5 to 6
+        Auto: 1, // Shifted from 0 to 1
+        One: 2, // Shifted from 1 to 2
+        Two: 3, // Shifted from 2 to 3
+        Three: 4, // Shifted from 3 to 4
+        Four: 5, // Shifted from 4 to 5
+        Five: 6, // Shifted from 5 to 6
         // Also handle numeric format from API
         '0': 1,
         '1': 2,
@@ -608,12 +642,12 @@ export class MELCloudAccessory {
     // Convert numeric speed to API text values
     // IMPORTANT: We use 1-6 instead of 0-5 because HomeKit treats rotation speed 0 as "turn off"
     const speedMap: Record<number, string> = {
-      1: 'Auto',  // Shifted from 0
-      2: 'One',   // Shifted from 1
-      3: 'Two',   // Shifted from 2
+      1: 'Auto', // Shifted from 0
+      2: 'One', // Shifted from 1
+      3: 'Two', // Shifted from 2
       4: 'Three', // Shifted from 3
-      5: 'Four',  // Shifted from 4
-      6: 'Five',  // Shifted from 5
+      5: 'Four', // Shifted from 4
+      6: 'Five', // Shifted from 5
     };
     const fanSpeedText = speedMap[speed] || 'Auto';
 
@@ -622,7 +656,7 @@ export class MELCloudAccessory {
     this.platform.log.info(
       `[${this.device.givenDisplayName}] Set Fan Speed:`,
       speed,
-      `(${fanSpeedText}) - Current: ${settings.SetFanSpeed}, Power: ${settings.Power}`
+      `(${fanSpeedText}) - Current: ${settings.SetFanSpeed}, Power: ${settings.Power}`,
     );
 
     // Don't change fan speed when device is off (AC resets to Auto when powered off)
@@ -635,7 +669,12 @@ export class MELCloudAccessory {
     // Normalize API format ("0"/"Auto" are same, "1"/"One" are same, etc.)
     const normalizeSpeed = (s: string): string => {
       const map: Record<string, string> = {
-        '0': 'Auto', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five',
+        '0': 'Auto',
+        '1': 'One',
+        '2': 'Two',
+        '3': 'Three',
+        '4': 'Four',
+        '5': 'Five',
       };
       return map[s] || s;
     };
@@ -661,7 +700,7 @@ export class MELCloudAccessory {
 
       // Optimistically update cached state immediately
       this.platform.debugLog(`[${this.device.givenDisplayName}] Fan speed command sent successfully, updating cache`);
-      const updatedSettings = this.device.settings.map(setting => {
+      const updatedSettings = this.device.settings.map((setting) => {
         if (setting.name === 'SetFanSpeed') {
           return { ...setting, value: fanSpeedText };
         }
@@ -672,7 +711,10 @@ export class MELCloudAccessory {
       // Refresh device state after command (debounced to prevent API spam)
       this.scheduleRefresh();
     } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set fan speed:`, error instanceof Error ? error.message : String(error));
+      this.platform.log.error(
+        `[${this.device.givenDisplayName}] Failed to set fan speed:`,
+        error instanceof Error ? error.message : String(error),
+      );
       throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
   }
@@ -682,13 +724,17 @@ export class MELCloudAccessory {
     // Skip updates if we're waiting for a command verification refresh
     // This prevents periodic refreshes from overwriting optimistic updates before our own refresh executes
     if (this.pendingCommandRefresh) {
-      this.platform.debugLog(`[${this.device.givenDisplayName}] Skipping updateCharacteristics - command verification refresh pending`);
+      this.platform.debugLog(
+        `[${this.device.givenDisplayName}] Skipping updateCharacteristics - command verification refresh pending`,
+      );
       return;
     }
 
     // Validate device data before updating
     if (!this.device?.settings || this.device.settings.length === 0) {
-      this.platform.log.warn(`[${this.device?.givenDisplayName || 'Unknown'}] No device settings available, skipping update`);
+      this.platform.log.warn(
+        `[${this.device?.givenDisplayName || 'Unknown'}] No device settings available, skipping update`,
+      );
       return;
     }
 
@@ -700,7 +746,9 @@ export class MELCloudAccessory {
       return;
     }
 
-    this.platform.debugLog(`[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`);
+    this.platform.debugLog(
+      `[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`,
+    );
 
     // Only update characteristics if values have actually changed
     // This prevents HomeKit from showing errors when settings panel is open
@@ -725,13 +773,13 @@ export class MELCloudAccessory {
     // mark accessories as "Not Responding" after periods of inactivity.
     // Use updateValue() to properly trigger HAP notifications to subscribed clients.
     // Validate temperature before sending to HomeKit (NaN would cause issues)
-    const validCurrentTemp = isNaN(currentTemp) ? (cachedTemp as number) ?? 20 : currentTemp;
-    this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-      .updateValue(validCurrentTemp);
+    const validCurrentTemp = Number.isNaN(currentTemp) ? ((cachedTemp as number) ?? 20) : currentTemp;
+    this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).updateValue(validCurrentTemp);
 
     // Also update the separate temperature sensor service for automations (if enabled)
     if (this.temperatureSensor) {
-      this.temperatureSensor.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+      this.temperatureSensor
+        .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
         .updateValue(validCurrentTemp);
     }
 
@@ -740,7 +788,7 @@ export class MELCloudAccessory {
     const defaultTemp = 20; // Default to 20°C if temperature is invalid
 
     // Use default if setTemp is NaN or out of valid range
-    const validSetTemp = isNaN(setTemp) ? defaultTemp : setTemp;
+    const validSetTemp = Number.isNaN(setTemp) ? defaultTemp : setTemp;
 
     // HomeKit minimums (same as setProps)
     const HOMEKIT_MIN_COOLING = 16;
@@ -762,12 +810,11 @@ export class MELCloudAccessory {
       Math.max(this.device.capabilities.minTempCoolDry, HOMEKIT_MIN_COOLING),
       Math.min(this.device.capabilities.maxTempCoolDry, this.coolingThreshold),
     );
-    const cachedCoolingTemp = this.service.getCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature).value;
+    const cachedCoolingTemp = this.service.getCharacteristic(
+      this.platform.Characteristic.CoolingThresholdTemperature,
+    ).value;
     if (coolingTemp !== cachedCoolingTemp) {
-      this.service.updateCharacteristic(
-        this.platform.Characteristic.CoolingThresholdTemperature,
-        coolingTemp,
-      );
+      this.service.updateCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature, coolingTemp);
     }
 
     // Validate heating threshold temperature
@@ -775,32 +822,37 @@ export class MELCloudAccessory {
       Math.max(this.device.capabilities.minTempHeat, HOMEKIT_MIN_HEATING),
       Math.min(this.device.capabilities.maxTempHeat, this.heatingThreshold),
     );
-    const cachedHeatingTemp = this.service.getCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature).value;
+    const cachedHeatingTemp = this.service.getCharacteristic(
+      this.platform.Characteristic.HeatingThresholdTemperature,
+    ).value;
     if (heatingTemp !== cachedHeatingTemp) {
-      this.service.updateCharacteristic(
-        this.platform.Characteristic.HeatingThresholdTemperature,
-        heatingTemp,
-      );
+      this.service.updateCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature, heatingTemp);
     }
 
     if (this.device.capabilities.numberOfFanSpeeds > 0) {
       // Convert API values to numeric speed (handle both text and numeric formats)
       // Use 1-6 range (Auto=1, One=2, ..., Five=6) to match getRotationSpeed
       const reverseSpeedMap: Record<string, number> = {
-        'Auto': 1, 'One': 2, 'Two': 3, 'Three': 4, 'Four': 5, 'Five': 6,
-        '0': 1, '1': 2, '2': 3, '3': 4, '4': 5, '5': 6,
+        Auto: 1,
+        One: 2,
+        Two: 3,
+        Three: 4,
+        Four: 5,
+        Five: 6,
+        '0': 1,
+        '1': 2,
+        '2': 3,
+        '3': 4,
+        '4': 5,
+        '5': 6,
       };
       const speed = reverseSpeedMap[settings.SetFanSpeed] ?? 1;
       const cachedSpeed = this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed).value;
 
       if (speed !== cachedSpeed) {
-        this.service.updateCharacteristic(
-          this.platform.Characteristic.RotationSpeed,
-          speed,
-        );
+        this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, speed);
       }
     }
-
   }
 
   /**
@@ -855,7 +907,12 @@ export class MELCloudAccessory {
     // "0" and "Auto" are the same, "1" and "One" are the same, etc.
     const normalizeFanSpeed = (speed: string): string => {
       const numericToText: Record<string, string> = {
-        '0': 'Auto', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five',
+        '0': 'Auto',
+        '1': 'One',
+        '2': 'Two',
+        '3': 'Three',
+        '4': 'Four',
+        '5': 'Five',
       };
       return numericToText[speed] || speed;
     };
@@ -881,9 +938,7 @@ export class MELCloudAccessory {
       if (fanChanged) {
         changes.push(`Fan: ${oldSettings.SetFanSpeed} -> ${newSettings.SetFanSpeed}`);
       }
-      this.platform.log.info(
-        `[${device.givenDisplayName}] ⚡ State changed: ${changes.join(', ')}`,
-      );
+      this.platform.log.info(`[${device.givenDisplayName}] ⚡ State changed: ${changes.join(', ')}`);
     }
 
     this.device = device;

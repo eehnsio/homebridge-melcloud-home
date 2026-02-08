@@ -22,16 +22,19 @@ class FanSpeedButton {
         this.device = accessory.context.device;
         const speedName = this.getSpeedDisplayName();
         // Set accessory information
-        this.accessory.getService(this.platform.Service.AccessoryInformation)
+        this.accessory
+            .getService(this.platform.Service.AccessoryInformation)
             ?.setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
             .setCharacteristic(this.platform.Characteristic.Model, 'MELCloud Fan Button')
             .setCharacteristic(this.platform.Characteristic.SerialNumber, `${this.device.connectedInterfaceIdentifier}-fan-${speedKey}`);
         // Get or create the Switch service
-        this.service = this.accessory.getService(this.platform.Service.Switch) ||
-            this.accessory.addService(this.platform.Service.Switch);
+        this.service =
+            this.accessory.getService(this.platform.Service.Switch) ||
+                this.accessory.addService(this.platform.Service.Switch);
         this.service.setCharacteristic(this.platform.Characteristic.Name, `${this.device.givenDisplayName} Fan ${speedName}`);
         // On/Off control
-        this.service.getCharacteristic(this.platform.Characteristic.On)
+        this.service
+            .getCharacteristic(this.platform.Characteristic.On)
             .onGet(this.getOn.bind(this))
             .onSet(this.setOn.bind(this));
     }
@@ -93,7 +96,7 @@ class FanSpeedButton {
                 inStandbyMode: null,
             });
             // Update cached state
-            const updatedSettings = this.device.settings.map(setting => {
+            const updatedSettings = this.device.settings.map((setting) => {
                 if (setting.name === 'SetFanSpeed') {
                     return { ...setting, value: fanSpeed };
                 }
@@ -131,28 +134,28 @@ class FanSpeedButton {
 exports.FanSpeedButton = FanSpeedButton;
 // Fan speed mapping: API value -> display name
 FanSpeedButton.SPEED_NAMES = {
-    'Auto': 'Auto',
+    Auto: 'Auto',
     '0': 'Auto',
-    'One': 'Quiet',
+    One: 'Quiet',
     '1': 'Quiet',
-    'Two': '2',
+    Two: '2',
     '2': '2',
-    'Three': '3',
+    Three: '3',
     '3': '3',
-    'Four': '4',
+    Four: '4',
     '4': '4',
-    'Five': 'Max',
+    Five: 'Max',
     '5': 'Max',
 };
 // API values for each speed
 FanSpeedButton.SPEED_API_VALUES = {
-    'auto': 'Auto',
-    'quiet': 'One',
+    auto: 'Auto',
+    quiet: 'One',
     '1': 'One',
     '2': 'Two',
     '3': 'Three',
     '4': 'Four',
-    'max': 'Five',
+    max: 'Five',
     '5': 'Five',
 };
 //# sourceMappingURL=fan-speed-button.js.map

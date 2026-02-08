@@ -11,8 +11,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OAuthHelper = void 0;
-const https_1 = __importDefault(require("https"));
-const crypto_1 = __importDefault(require("crypto"));
+const node_crypto_1 = __importDefault(require("node:crypto"));
+const node_https_1 = __importDefault(require("node:https"));
 const MOBILE_USER_AGENT = 'MonitorAndControl.App.Mobile/35 CFNetwork/3860.100.1 Darwin/25.0.0';
 const CLIENT_ID = 'homemobile';
 const REDIRECT_URI = 'melcloudhome://';
@@ -27,17 +27,15 @@ class OAuthHelper {
      * Generate PKCE code verifier and challenge
      */
     generatePKCE() {
-        const verifier = crypto_1.default.randomBytes(32).toString('base64url');
-        const challenge = crypto_1.default.createHash('sha256')
-            .update(verifier)
-            .digest('base64url');
+        const verifier = node_crypto_1.default.randomBytes(32).toString('base64url');
+        const challenge = node_crypto_1.default.createHash('sha256').update(verifier).digest('base64url');
         return { verifier, challenge };
     }
     /**
      * Generate random state for CSRF protection
      */
     generateState() {
-        return crypto_1.default.randomBytes(32).toString('hex');
+        return node_crypto_1.default.randomBytes(32).toString('hex');
     }
     /**
      * Make HTTPS request and return response body (follows redirects)
@@ -53,15 +51,13 @@ class OAuthHelper {
                 hostname: urlObj.hostname,
                 path: urlObj.pathname + urlObj.search,
             };
-            const req = https_1.default.request(reqOptions, (res) => {
+            const req = node_https_1.default.request(reqOptions, (res) => {
                 // Handle redirects
                 if (res.statusCode === 302 || res.statusCode === 301) {
                     const location = res.headers.location;
                     if (location) {
                         this.log.debug(`Following redirect to: ${location}`);
-                        const redirectUrl = location.startsWith('http')
-                            ? location
-                            : `https://${urlObj.hostname}${location}`;
+                        const redirectUrl = location.startsWith('http') ? location : `https://${urlObj.hostname}${location}`;
                         if (redirectUrl.startsWith('http://')) {
                             reject(new Error('Refusing to follow non-HTTPS redirect'));
                             return;
@@ -74,7 +70,7 @@ class OAuthHelper {
                     }
                 }
                 let data = '';
-                res.on('data', chunk => data += chunk);
+                res.on('data', (chunk) => (data += chunk));
                 res.on('end', () => resolve(data));
             });
             req.on('error', reject);
@@ -90,12 +86,12 @@ class OAuthHelper {
     async getLoginPage(authUrl) {
         this.log.debug('Getting login page...');
         // We need to capture cookies during redirects
-        let cookies = [];
+        const cookies = [];
         const response = await this.httpsRequestWithCookies(authUrl, {
             method: 'GET',
             headers: {
                 'User-Agent': MOBILE_USER_AGENT,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
             },
         }, undefined, 0, cookies);
@@ -141,16 +137,16 @@ class OAuthHelper {
                 if (!reqOptions.headers) {
                     reqOptions.headers = {};
                 }
-                reqOptions.headers['Cookie'] = cookies.join('; ');
+                reqOptions.headers.Cookie = cookies.join('; ');
             }
-            const req = https_1.default.request(reqOptions, (res) => {
+            const req = node_https_1.default.request(reqOptions, (res) => {
                 // Capture Set-Cookie headers
                 const setCookie = res.headers['set-cookie'];
                 if (setCookie) {
-                    setCookie.forEach(cookie => {
+                    setCookie.forEach((cookie) => {
                         const cookieName = cookie.split('=')[0];
                         // Replace existing cookie with same name
-                        const existingIndex = cookies.findIndex(c => c.startsWith(cookieName + '='));
+                        const existingIndex = cookies.findIndex((c) => c.startsWith(`${cookieName}=`));
                         if (existingIndex >= 0) {
                             cookies[existingIndex] = cookie.split(';')[0];
                         }
@@ -164,9 +160,7 @@ class OAuthHelper {
                     const location = res.headers.location;
                     if (location) {
                         this.log.debug(`Following redirect to: ${location}`);
-                        const redirectUrl = location.startsWith('http')
-                            ? location
-                            : `https://${urlObj.hostname}${location}`;
+                        const redirectUrl = location.startsWith('http') ? location : `https://${urlObj.hostname}${location}`;
                         if (redirectUrl.startsWith('http://')) {
                             reject(new Error('Refusing to follow non-HTTPS redirect'));
                             return;
@@ -179,7 +173,7 @@ class OAuthHelper {
                     }
                 }
                 let data = '';
-                res.on('data', chunk => data += chunk);
+                res.on('data', (chunk) => (data += chunk));
                 res.on('end', () => resolve({ html: data, cookies, finalUrl: url }));
             });
             req.on('error', reject);
@@ -205,31 +199,31 @@ class OAuthHelper {
         // We need to manually follow redirects and extract the callback URL
         return new Promise((resolve, reject) => {
             const urlObj = new URL(loginUrl);
-            const req = https_1.default.request({
+            const req = node_https_1.default.request({
                 hostname: urlObj.hostname,
                 path: urlObj.pathname + urlObj.search,
                 method: 'POST',
                 headers: {
                     'User-Agent': MOBILE_USER_AGENT,
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                     'Accept-Language': 'en-US,en;q=0.9',
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'Content-Length': Buffer.byteLength(formData.toString()).toString(),
-                    'Cookie': cookies,
-                    'Origin': 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
-                    'Referer': loginUrl,
+                    Cookie: cookies,
+                    Origin: 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
+                    Referer: loginUrl,
                 },
             }, (res) => {
                 this.log.debug(`Login POST response: ${res.statusCode}`);
                 let data = '';
-                res.on('data', chunk => data += chunk);
+                res.on('data', (chunk) => (data += chunk));
                 res.on('end', () => {
                     // Look for redirect to melcloudhome://
                     const locationHeader = res.headers.location;
                     if (locationHeader) {
                         this.log.debug(`Got redirect to: ${locationHeader.substring(0, 200)}...`);
                     }
-                    if (locationHeader && locationHeader.startsWith('melcloudhome://')) {
+                    if (locationHeader?.startsWith('melcloudhome://')) {
                         // Extract authorization code from callback URL
                         const codeMatch = locationHeader.match(/[?&]code=([^&]+)/);
                         if (codeMatch) {
@@ -246,8 +240,8 @@ class OAuthHelper {
                         this.log.debug('Found form_post response, submitting to callback endpoint...');
                         // Submit the form to complete the OAuth flow
                         this.submitFormPost(formActionMatch[1], formCodeMatch[1], formStateMatch[1], cookies)
-                            .then(code => resolve(code))
-                            .catch(err => reject(err));
+                            .then((code) => resolve(code))
+                            .catch((err) => reject(err));
                         return;
                     }
                     // Check response body for melcloudhome:// URL (might be in JavaScript)
@@ -261,8 +255,8 @@ class OAuthHelper {
                     if (locationHeader && (res.statusCode === 302 || res.statusCode === 301 || res.statusCode === 303)) {
                         // Follow redirect chain
                         this.followRedirects(locationHeader, 0, cookies)
-                            .then(code => resolve(code))
-                            .catch(err => reject(err));
+                            .then((code) => resolve(code))
+                            .catch((err) => reject(err));
                         return;
                     }
                     // Check for error in response
@@ -295,7 +289,7 @@ class OAuthHelper {
         });
         return new Promise((resolve, reject) => {
             const urlObj = new URL(actionUrl);
-            const req = https_1.default.request({
+            const req = node_https_1.default.request({
                 hostname: urlObj.hostname,
                 path: urlObj.pathname + urlObj.search,
                 method: 'POST',
@@ -303,17 +297,17 @@ class OAuthHelper {
                     'User-Agent': MOBILE_USER_AGENT,
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'Content-Length': Buffer.byteLength(formData.toString()).toString(),
-                    'Cookie': cookies,
-                    'Origin': 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
-                    'Referer': urlObj.origin,
+                    Cookie: cookies,
+                    Origin: 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
+                    Referer: urlObj.origin,
                 },
             }, (res) => {
                 let data = '';
-                res.on('data', chunk => data += chunk);
+                res.on('data', (chunk) => (data += chunk));
                 res.on('end', () => {
                     const locationHeader = res.headers.location;
                     // Check for direct redirect with code
-                    if (locationHeader && locationHeader.startsWith('melcloudhome://')) {
+                    if (locationHeader?.startsWith('melcloudhome://')) {
                         const codeMatch = locationHeader.match(/[?&]code=([^&]+)/);
                         if (codeMatch) {
                             this.log.debug('Got authorization code from form_post callback');
@@ -325,8 +319,8 @@ class OAuthHelper {
                     if (locationHeader && (res.statusCode === 302 || res.statusCode === 301 || res.statusCode === 303)) {
                         this.log.debug(`Following redirect from form_post: ${locationHeader.substring(0, 100)}...`);
                         this.followRedirects(locationHeader, 0)
-                            .then(code => resolve(code))
-                            .catch(err => reject(err));
+                            .then((code) => resolve(code))
+                            .catch((err) => reject(err));
                         return;
                     }
                     // Check response body for code
@@ -358,23 +352,23 @@ class OAuthHelper {
             const urlObj = new URL(url);
             const headers = {
                 'User-Agent': MOBILE_USER_AGENT,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             };
             if (cookies) {
-                headers['Cookie'] = cookies;
+                headers.Cookie = cookies;
             }
-            const req = https_1.default.request({
+            const req = node_https_1.default.request({
                 hostname: urlObj.hostname,
                 path: urlObj.pathname + urlObj.search,
                 method: 'GET',
                 headers,
             }, (res) => {
                 let data = '';
-                res.on('data', chunk => data += chunk);
+                res.on('data', (chunk) => (data += chunk));
                 res.on('end', () => {
                     const locationHeader = res.headers.location;
                     // Check for direct redirect with code
-                    if (locationHeader && locationHeader.startsWith('melcloudhome://')) {
+                    if (locationHeader?.startsWith('melcloudhome://')) {
                         const codeMatch = locationHeader.match(/[?&]code=([^&]+)/);
                         if (codeMatch) {
                             resolve(codeMatch[1]);
@@ -403,8 +397,8 @@ class OAuthHelper {
                             : `https://${urlObj.hostname}${locationHeader}`;
                         this.log.debug(`Following redirect (depth ${depth + 1}): ${redirectUrl.substring(0, 100)}...`);
                         this.followRedirects(redirectUrl, depth + 1, cookies)
-                            .then(code => resolve(code))
-                            .catch(err => reject(err));
+                            .then((code) => resolve(code))
+                            .catch((err) => reject(err));
                         return;
                     }
                     this.log.error(`No authorization code found at depth ${depth}`);
@@ -434,7 +428,7 @@ class OAuthHelper {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Content-Length': Buffer.byteLength(tokenData.toString()).toString(),
-                'Authorization': 'Basic aG9tZW1vYmlsZTo=', // base64(homemobile:)
+                Authorization: 'Basic aG9tZW1vYmlsZTo=', // base64(homemobile:)
             },
         }, tokenData.toString());
         const tokens = JSON.parse(response);

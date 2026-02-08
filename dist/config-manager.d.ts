@@ -5,7 +5,7 @@
  * config file, so users don't need to manually update their config after
  * initial authentication.
  */
-import { Logger } from 'homebridge';
+import type { Logger } from 'homebridge';
 export declare class ConfigManager {
     private readonly log;
     private configPath;

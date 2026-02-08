@@ -303,8 +303,8 @@
                 };
 
                 // Update settings while preserving refreshToken
-                const rawInterval = parseInt(document.getElementById('refresh-interval').value);
-                config.refreshInterval = Math.max(10, Math.min(3600, isNaN(rawInterval) ? 30 : rawInterval));
+                const rawInterval = parseInt(document.getElementById('refresh-interval').value, 10);
+                config.refreshInterval = Math.max(10, Math.min(3600, Number.isNaN(rawInterval) ? 30 : rawInterval));
                 config.debug = document.getElementById('debug-mode').checked;
                 config.exposeTemperatureSensor = document.getElementById('expose-temperature-sensor').checked;
                 config.fanSpeedButtons = document.getElementById('fan-speed-buttons').value;

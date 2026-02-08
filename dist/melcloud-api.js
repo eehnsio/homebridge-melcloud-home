@@ -4,13 +4,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MELCloudAPI = void 0;
-const https_1 = __importDefault(require("https"));
+const node_https_1 = __importDefault(require("node:https"));
 class MELCloudAPI {
     constructor(config) {
         // Mobile app client credentials (from captured traffic)
         // Base64 of "homemobile:" (client_id:client_secret where secret is empty)
         this.CLIENT_AUTH = 'Basic aG9tZW1vYmlsZTo=';
-        this.httpsAgent = new https_1.default.Agent({ keepAlive: true });
+        this.httpsAgent = new node_https_1.default.Agent({ keepAlive: true });
         this.config = config;
         this.currentRefreshToken = config.refreshToken;
     }
@@ -23,7 +23,7 @@ class MELCloudAPI {
         }
         // Refresh if token expires in less than 5 minutes
         const bufferTime = 5 * 60 * 1000; // 5 minutes
-        return Date.now() >= (this.tokenExpiry - bufferTime);
+        return Date.now() >= this.tokenExpiry - bufferTime;
     }
     /**
      * Refresh the access token using the refresh token
@@ -46,14 +46,14 @@ class MELCloudAPI {
                 timeout: 10000,
                 agent: this.httpsAgent,
                 headers: {
-                    'Accept': 'application/json',
+                    Accept: 'application/json',
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'Authorization': this.CLIENT_AUTH,
+                    Authorization: this.CLIENT_AUTH,
                     'User-Agent': 'MonitorAndControl.App.Mobile/35 CFNetwork/3860.100.1 Darwin/25.0.0',
                     'Content-Length': Buffer.byteLength(formData.toString()).toString(),
                 },
             };
-            const req = https_1.default.request(options, (res) => {
+            const req = node_https_1.default.request(options, (res) => {
                 let body = '';
                 res.on('data', (chunk) => {
                     body += chunk;
@@ -74,7 +74,7 @@ class MELCloudAPI {
                         }
                         this.accessToken = tokenResponse.access_token;
                         this.currentRefreshToken = tokenResponse.refresh_token;
-                        this.tokenExpiry = Date.now() + (tokenResponse.expires_in * 1000);
+                        this.tokenExpiry = Date.now() + tokenResponse.expires_in * 1000;
                         this.config.debugLog?.('[MELCloud] Access token refreshed successfully');
                         this.config.debugLog?.(`[MELCloud] Token expires in: ${tokenResponse.expires_in} seconds`);
                         // Notify platform if refresh token changed (for persistence)
@@ -123,8 +123,8 @@ class MELCloudAPI {
         // Use mobile BFF API with Bearer token for all requests
         const hostname = 'mobile.bff.melcloudhome.com';
         const headers = {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${this.accessToken}`,
+            Accept: 'application/json',
+            Authorization: `Bearer ${this.accessToken}`,
             'User-Agent': 'MonitorAndControl.App.Mobile/35 CFNetwork/3860.100.1 Darwin/25.0.0',
         };
         try {
@@ -143,7 +143,7 @@ class MELCloudAPI {
             if (retryCount < MELCloudAPI.MAX_RETRIES && this.isRetryableError(error)) {
                 const delay = this.getRetryDelay(error, retryCount);
                 this.config.debugLog?.(`[MELCloud] Retryable error, attempt ${retryCount + 1}/${MELCloudAPI.MAX_RETRIES}, waiting ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
+                await new Promise((resolve) => setTimeout(resolve, delay));
                 return this.makeRequest(method, path, data, retryCount + 1);
             }
             throw error;
@@ -172,11 +172,11 @@ class MELCloudAPI {
         if (error instanceof Error && error.message.includes('HTTP 429')) {
             const retryAfterMatch = error.message.match(/Retry-After: (\d+)/);
             if (retryAfterMatch) {
-                return parseInt(retryAfterMatch[1]) * 1000;
+                return parseInt(retryAfterMatch[1], 10) * 1000;
             }
         }
         // Exponential backoff: 1s, 2s, 4s
-        return Math.pow(2, retryCount) * 1000;
+        return 2 ** retryCount * 1000;
     }
     /**
      * Execute the actual HTTP request
@@ -202,7 +202,7 @@ class MELCloudAPI {
                 };
             }
             const MAX_RESPONSE_SIZE = 1024 * 1024; // 1MB limit
-            const req = https_1.default.request(options, (res) => {
+            const req = node_https_1.default.request(options, (res) => {
                 let responseBody = '';
                 res.on('data', (chunk) => {
                     responseBody += chunk;

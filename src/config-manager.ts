@@ -6,9 +6,9 @@
  * initial authentication.
  */
 
-import fs from 'fs';
-import path from 'path';
-import { Logger } from 'homebridge';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { Logger } from 'homebridge';
 
 export class ConfigManager {
   private configPath: string;
@@ -53,9 +53,7 @@ export class ConfigManager {
         return false;
       }
 
-      const platformIndex = config.platforms.findIndex(
-        (p: Record<string, unknown>) => p.platform === 'MELCloudHome',
-      );
+      const platformIndex = config.platforms.findIndex((p: Record<string, unknown>) => p.platform === 'MELCloudHome');
 
       if (platformIndex === -1) {
         this.log.error('Could not find MELCloudHome platform in config');
@@ -73,7 +71,7 @@ export class ConfigManager {
       }
 
       // Write atomically: write to temp file, then rename over original
-      const tmpPath = this.configPath + '.tmp';
+      const tmpPath = `${this.configPath}.tmp`;
       await fs.promises.writeFile(tmpPath, JSON.stringify(config, null, 4), 'utf8');
       await fs.promises.rename(tmpPath, this.configPath);
 

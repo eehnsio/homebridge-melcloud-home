@@ -1,6 +1,6 @@
-import { PlatformAccessory, CharacteristicValue } from 'homebridge';
-import { MELCloudHomePlatform } from './platform';
-import { AirToAirUnit } from './melcloud-api';
+import type { CharacteristicValue, PlatformAccessory } from 'homebridge';
+import { type AirToAirUnit } from './melcloud-api';
+import type { MELCloudHomePlatform } from './platform';
 export declare class MELCloudAccessory {
     private readonly platform;
     private readonly accessory;

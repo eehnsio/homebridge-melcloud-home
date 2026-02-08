@@ -6,9 +6,9 @@
  * obtains and refreshes tokens without user intervention.
  */
 
-import https from 'https';
-import crypto from 'crypto';
-import { Logger } from 'homebridge';
+import crypto from 'node:crypto';
+import https from 'node:https';
+import type { Logger } from 'homebridge';
 
 const MOBILE_USER_AGENT = 'MonitorAndControl.App.Mobile/35 CFNetwork/3860.100.1 Darwin/25.0.0';
 const CLIENT_ID = 'homemobile';
@@ -37,9 +37,7 @@ export class OAuthHelper {
    */
   private generatePKCE(): PKCEChallenge {
     const verifier = crypto.randomBytes(32).toString('base64url');
-    const challenge = crypto.createHash('sha256')
-      .update(verifier)
-      .digest('base64url');
+    const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
 
     return { verifier, challenge };
   }
@@ -78,9 +76,7 @@ export class OAuthHelper {
           const location = res.headers.location;
           if (location) {
             this.log.debug(`Following redirect to: ${location}`);
-            const redirectUrl = location.startsWith('http')
-              ? location
-              : `https://${urlObj.hostname}${location}`;
+            const redirectUrl = location.startsWith('http') ? location : `https://${urlObj.hostname}${location}`;
 
             if (redirectUrl.startsWith('http://')) {
               reject(new Error('Refusing to follow non-HTTPS redirect'));
@@ -96,7 +92,7 @@ export class OAuthHelper {
         }
 
         let data = '';
-        res.on('data', chunk => data += chunk);
+        res.on('data', (chunk) => (data += chunk));
         res.on('end', () => resolve(data));
       });
 
@@ -122,16 +118,22 @@ export class OAuthHelper {
     this.log.debug('Getting login page...');
 
     // We need to capture cookies during redirects
-    let cookies: string[] = [];
+    const cookies: string[] = [];
 
-    const response = await this.httpsRequestWithCookies(authUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': MOBILE_USER_AGENT,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
+    const response = await this.httpsRequestWithCookies(
+      authUrl,
+      {
+        method: 'GET',
+        headers: {
+          'User-Agent': MOBILE_USER_AGENT,
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
       },
-    }, undefined, 0, cookies);
+      undefined,
+      0,
+      cookies,
+    );
 
     // Log a snippet of the HTML to see the form structure
     const formSnippet = response.html.match(/<form[^>]*>[\s\S]{0,800}/);
@@ -188,17 +190,17 @@ export class OAuthHelper {
         if (!reqOptions.headers) {
           reqOptions.headers = {};
         }
-        (reqOptions.headers as Record<string, string>)['Cookie'] = cookies.join('; ');
+        (reqOptions.headers as Record<string, string>).Cookie = cookies.join('; ');
       }
 
       const req = https.request(reqOptions, (res) => {
         // Capture Set-Cookie headers
         const setCookie = res.headers['set-cookie'];
         if (setCookie) {
-          setCookie.forEach(cookie => {
+          setCookie.forEach((cookie) => {
             const cookieName = cookie.split('=')[0];
             // Replace existing cookie with same name
-            const existingIndex = cookies.findIndex(c => c.startsWith(cookieName + '='));
+            const existingIndex = cookies.findIndex((c) => c.startsWith(`${cookieName}=`));
             if (existingIndex >= 0) {
               cookies[existingIndex] = cookie.split(';')[0];
             } else {
@@ -212,9 +214,7 @@ export class OAuthHelper {
           const location = res.headers.location;
           if (location) {
             this.log.debug(`Following redirect to: ${location}`);
-            const redirectUrl = location.startsWith('http')
-              ? location
-              : `https://${urlObj.hostname}${location}`;
+            const redirectUrl = location.startsWith('http') ? location : `https://${urlObj.hostname}${location}`;
 
             if (redirectUrl.startsWith('http://')) {
               reject(new Error('Refusing to follow non-HTTPS redirect'));
@@ -230,7 +230,7 @@ export class OAuthHelper {
         }
 
         let data = '';
-        res.on('data', chunk => data += chunk);
+        res.on('data', (chunk) => (data += chunk));
         res.on('end', () => resolve({ html: data, cookies, finalUrl: url }));
       });
 
@@ -268,87 +268,90 @@ export class OAuthHelper {
     // We need to manually follow redirects and extract the callback URL
     return new Promise((resolve, reject) => {
       const urlObj = new URL(loginUrl);
-      const req = https.request({
-        hostname: urlObj.hostname,
-        path: urlObj.pathname + urlObj.search,
-        method: 'POST',
-        headers: {
-          'User-Agent': MOBILE_USER_AGENT,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(formData.toString()).toString(),
-          'Cookie': cookies,
-          'Origin': 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
-          'Referer': loginUrl,
+      const req = https.request(
+        {
+          hostname: urlObj.hostname,
+          path: urlObj.pathname + urlObj.search,
+          method: 'POST',
+          headers: {
+            'User-Agent': MOBILE_USER_AGENT,
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(formData.toString()).toString(),
+            Cookie: cookies,
+            Origin: 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
+            Referer: loginUrl,
+          },
         },
-      }, (res) => {
-        this.log.debug(`Login POST response: ${res.statusCode}`);
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          // Look for redirect to melcloudhome://
-          const locationHeader = res.headers.location;
-          if (locationHeader) {
-            this.log.debug(`Got redirect to: ${locationHeader.substring(0, 200)}...`);
-          }
+        (res) => {
+          this.log.debug(`Login POST response: ${res.statusCode}`);
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => {
+            // Look for redirect to melcloudhome://
+            const locationHeader = res.headers.location;
+            if (locationHeader) {
+              this.log.debug(`Got redirect to: ${locationHeader.substring(0, 200)}...`);
+            }
 
-          if (locationHeader && locationHeader.startsWith('melcloudhome://')) {
-            // Extract authorization code from callback URL
-            const codeMatch = locationHeader.match(/[?&]code=([^&]+)/);
-            if (codeMatch) {
-              resolve(codeMatch[1]);
+            if (locationHeader?.startsWith('melcloudhome://')) {
+              // Extract authorization code from callback URL
+              const codeMatch = locationHeader.match(/[?&]code=([^&]+)/);
+              if (codeMatch) {
+                resolve(codeMatch[1]);
+                return;
+              }
+            }
+
+            // Check for form_post response (HTML with hidden form)
+            // Cognito returns an HTML page with a form that auto-submits
+            const formCodeMatch = data.match(/name="code"\s+value="([^"]+)"/);
+            const formStateMatch = data.match(/name="state"\s+value="([^"]+)"/);
+            const formActionMatch = data.match(/action="([^"]+)"/);
+
+            if (formCodeMatch && formStateMatch && formActionMatch) {
+              this.log.debug('Found form_post response, submitting to callback endpoint...');
+              // Submit the form to complete the OAuth flow
+              this.submitFormPost(formActionMatch[1], formCodeMatch[1], formStateMatch[1], cookies)
+                .then((code) => resolve(code))
+                .catch((err) => reject(err));
               return;
             }
-          }
 
-          // Check for form_post response (HTML with hidden form)
-          // Cognito returns an HTML page with a form that auto-submits
-          const formCodeMatch = data.match(/name="code"\s+value="([^"]+)"/);
-          const formStateMatch = data.match(/name="state"\s+value="([^"]+)"/);
-          const formActionMatch = data.match(/action="([^"]+)"/);
+            // Check response body for melcloudhome:// URL (might be in JavaScript)
+            const bodyCodeMatch = data.match(/melcloudhome:\/\/[^"'\s]*[?&]code=([^&"'\s]+)/);
+            if (bodyCodeMatch) {
+              this.log.debug('Found authorization code in response body');
+              resolve(bodyCodeMatch[1]);
+              return;
+            }
 
-          if (formCodeMatch && formStateMatch && formActionMatch) {
-            this.log.debug('Found form_post response, submitting to callback endpoint...');
-            // Submit the form to complete the OAuth flow
-            this.submitFormPost(formActionMatch[1], formCodeMatch[1], formStateMatch[1], cookies)
-              .then(code => resolve(code))
-              .catch(err => reject(err));
-            return;
-          }
+            // Check if we need to follow another redirect
+            if (locationHeader && (res.statusCode === 302 || res.statusCode === 301 || res.statusCode === 303)) {
+              // Follow redirect chain
+              this.followRedirects(locationHeader, 0, cookies)
+                .then((code) => resolve(code))
+                .catch((err) => reject(err));
+              return;
+            }
 
-          // Check response body for melcloudhome:// URL (might be in JavaScript)
-          const bodyCodeMatch = data.match(/melcloudhome:\/\/[^"'\s]*[?&]code=([^&"'\s]+)/);
-          if (bodyCodeMatch) {
-            this.log.debug('Found authorization code in response body');
-            resolve(bodyCodeMatch[1]);
-            return;
-          }
+            // Check for error in response
+            if (data.includes('error') || data.includes('invalid') || data.includes('Error')) {
+              this.log.error(`Login failed with error in response body`);
+              this.log.error(`Body preview: ${data.substring(0, 800)}`);
+              reject(new Error('Login failed - check credentials or see error above'));
+              return;
+            }
 
-          // Check if we need to follow another redirect
-          if (locationHeader && (res.statusCode === 302 || res.statusCode === 301 || res.statusCode === 303)) {
-            // Follow redirect chain
-            this.followRedirects(locationHeader, 0, cookies)
-              .then(code => resolve(code))
-              .catch(err => reject(err));
-            return;
-          }
-
-          // Check for error in response
-          if (data.includes('error') || data.includes('invalid') || data.includes('Error')) {
-            this.log.error(`Login failed with error in response body`);
+            // Log details before failing
+            this.log.error('No authorization code found in login response');
+            this.log.error(`Status: ${res.statusCode}, Location: ${locationHeader || 'none'}`);
             this.log.error(`Body preview: ${data.substring(0, 800)}`);
-            reject(new Error('Login failed - check credentials or see error above'));
-            return;
-          }
-
-          // Log details before failing
-          this.log.error('No authorization code found in login response');
-          this.log.error(`Status: ${res.statusCode}, Location: ${locationHeader || 'none'}`);
-          this.log.error(`Body preview: ${data.substring(0, 800)}`);
-          reject(new Error('No authorization code found in response'));
-        });
-      });
+            reject(new Error('No authorization code found in response'));
+          });
+        },
+      );
 
       req.on('error', reject);
       req.write(formData.toString());
@@ -359,12 +362,7 @@ export class OAuthHelper {
   /**
    * Submit form_post data to the callback endpoint
    */
-  private async submitFormPost(
-    actionUrl: string,
-    code: string,
-    state: string,
-    cookies: string,
-  ): Promise<string> {
+  private async submitFormPost(actionUrl: string, code: string, state: string, cookies: string): Promise<string> {
     this.log.debug(`Submitting form_post to: ${actionUrl.substring(0, 100)}...`);
 
     const formData = new URLSearchParams({
@@ -374,57 +372,60 @@ export class OAuthHelper {
 
     return new Promise((resolve, reject) => {
       const urlObj = new URL(actionUrl);
-      const req = https.request({
-        hostname: urlObj.hostname,
-        path: urlObj.pathname + urlObj.search,
-        method: 'POST',
-        headers: {
-          'User-Agent': MOBILE_USER_AGENT,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(formData.toString()).toString(),
-          'Cookie': cookies,
-          'Origin': 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
-          'Referer': urlObj.origin,
+      const req = https.request(
+        {
+          hostname: urlObj.hostname,
+          path: urlObj.pathname + urlObj.search,
+          method: 'POST',
+          headers: {
+            'User-Agent': MOBILE_USER_AGENT,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(formData.toString()).toString(),
+            Cookie: cookies,
+            Origin: 'https://live-melcloudhome.auth.eu-west-1.amazoncognito.com',
+            Referer: urlObj.origin,
+          },
         },
-      }, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          const locationHeader = res.headers.location;
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => {
+            const locationHeader = res.headers.location;
 
-          // Check for direct redirect with code
-          if (locationHeader && locationHeader.startsWith('melcloudhome://')) {
-            const codeMatch = locationHeader.match(/[?&]code=([^&]+)/);
-            if (codeMatch) {
-              this.log.debug('Got authorization code from form_post callback');
-              resolve(codeMatch[1]);
+            // Check for direct redirect with code
+            if (locationHeader?.startsWith('melcloudhome://')) {
+              const codeMatch = locationHeader.match(/[?&]code=([^&]+)/);
+              if (codeMatch) {
+                this.log.debug('Got authorization code from form_post callback');
+                resolve(codeMatch[1]);
+                return;
+              }
+            }
+
+            // Follow any redirects
+            if (locationHeader && (res.statusCode === 302 || res.statusCode === 301 || res.statusCode === 303)) {
+              this.log.debug(`Following redirect from form_post: ${locationHeader.substring(0, 100)}...`);
+              this.followRedirects(locationHeader, 0)
+                .then((code) => resolve(code))
+                .catch((err) => reject(err));
               return;
             }
-          }
 
-          // Follow any redirects
-          if (locationHeader && (res.statusCode === 302 || res.statusCode === 301 || res.statusCode === 303)) {
-            this.log.debug(`Following redirect from form_post: ${locationHeader.substring(0, 100)}...`);
-            this.followRedirects(locationHeader, 0)
-              .then(code => resolve(code))
-              .catch(err => reject(err));
-            return;
-          }
+            // Check response body for code
+            const bodyCodeMatch = data.match(/melcloudhome:\/\/[^"'\s]*[?&]code=([^&"'\s]+)/);
+            if (bodyCodeMatch) {
+              this.log.debug('Found authorization code in form_post callback body');
+              resolve(bodyCodeMatch[1]);
+              return;
+            }
 
-          // Check response body for code
-          const bodyCodeMatch = data.match(/melcloudhome:\/\/[^"'\s]*[?&]code=([^&"'\s]+)/);
-          if (bodyCodeMatch) {
-            this.log.debug('Found authorization code in form_post callback body');
-            resolve(bodyCodeMatch[1]);
-            return;
-          }
-
-          this.log.error('No authorization code found in form_post callback');
-          this.log.error(`Status: ${res.statusCode}, Location: ${locationHeader || 'none'}`);
-          this.log.error(`Body preview: ${data.substring(0, 500)}`);
-          reject(new Error('No authorization code found in form_post callback'));
-        });
-      });
+            this.log.error('No authorization code found in form_post callback');
+            this.log.error(`Status: ${res.statusCode}, Location: ${locationHeader || 'none'}`);
+            this.log.error(`Body preview: ${data.substring(0, 500)}`);
+            reject(new Error('No authorization code found in form_post callback'));
+          });
+        },
+      );
 
       req.on('error', reject);
       req.write(formData.toString());
@@ -444,69 +445,72 @@ export class OAuthHelper {
       const urlObj = new URL(url);
       const headers: Record<string, string> = {
         'User-Agent': MOBILE_USER_AGENT,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       };
 
       if (cookies) {
-        headers['Cookie'] = cookies;
+        headers.Cookie = cookies;
       }
 
-      const req = https.request({
-        hostname: urlObj.hostname,
-        path: urlObj.pathname + urlObj.search,
-        method: 'GET',
-        headers,
-      }, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          const locationHeader = res.headers.location;
+      const req = https.request(
+        {
+          hostname: urlObj.hostname,
+          path: urlObj.pathname + urlObj.search,
+          method: 'GET',
+          headers,
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => {
+            const locationHeader = res.headers.location;
 
-          // Check for direct redirect with code
-          if (locationHeader && locationHeader.startsWith('melcloudhome://')) {
-            const codeMatch = locationHeader.match(/[?&]code=([^&]+)/);
-            if (codeMatch) {
-              resolve(codeMatch[1]);
+            // Check for direct redirect with code
+            if (locationHeader?.startsWith('melcloudhome://')) {
+              const codeMatch = locationHeader.match(/[?&]code=([^&]+)/);
+              if (codeMatch) {
+                resolve(codeMatch[1]);
+                return;
+              }
+            }
+
+            // Check for form_post response (HTML with hidden form)
+            // Cognito returns an HTML page with a form that auto-submits
+            const formCodeMatch = data.match(/name="code"\s+value="([^"]+)"/);
+            if (formCodeMatch) {
+              this.log.debug('Found authorization code in form_post response');
+              resolve(formCodeMatch[1]);
               return;
             }
-          }
 
-          // Check for form_post response (HTML with hidden form)
-          // Cognito returns an HTML page with a form that auto-submits
-          const formCodeMatch = data.match(/name="code"\s+value="([^"]+)"/);
-          if (formCodeMatch) {
-            this.log.debug('Found authorization code in form_post response');
-            resolve(formCodeMatch[1]);
-            return;
-          }
+            // Check response body for melcloudhome:// URL (might be in JavaScript)
+            const bodyCodeMatch = data.match(/melcloudhome:\/\/[^"'\s]*[?&]code=([^&"'\s]+)/);
+            if (bodyCodeMatch) {
+              this.log.debug('Found authorization code in response body');
+              resolve(bodyCodeMatch[1]);
+              return;
+            }
 
-          // Check response body for melcloudhome:// URL (might be in JavaScript)
-          const bodyCodeMatch = data.match(/melcloudhome:\/\/[^"'\s]*[?&]code=([^&"'\s]+)/);
-          if (bodyCodeMatch) {
-            this.log.debug('Found authorization code in response body');
-            resolve(bodyCodeMatch[1]);
-            return;
-          }
+            // Follow standard redirect
+            if (locationHeader && (res.statusCode === 302 || res.statusCode === 301)) {
+              const redirectUrl = locationHeader.startsWith('http')
+                ? locationHeader
+                : `https://${urlObj.hostname}${locationHeader}`;
 
-          // Follow standard redirect
-          if (locationHeader && (res.statusCode === 302 || res.statusCode === 301)) {
-            const redirectUrl = locationHeader.startsWith('http')
-              ? locationHeader
-              : `https://${urlObj.hostname}${locationHeader}`;
+              this.log.debug(`Following redirect (depth ${depth + 1}): ${redirectUrl.substring(0, 100)}...`);
+              this.followRedirects(redirectUrl, depth + 1, cookies)
+                .then((code) => resolve(code))
+                .catch((err) => reject(err));
+              return;
+            }
 
-            this.log.debug(`Following redirect (depth ${depth + 1}): ${redirectUrl.substring(0, 100)}...`);
-            this.followRedirects(redirectUrl, depth + 1, cookies)
-              .then(code => resolve(code))
-              .catch(err => reject(err));
-            return;
-          }
-
-          this.log.error(`No authorization code found at depth ${depth}`);
-          this.log.error(`Status: ${res.statusCode}, Location: ${locationHeader || 'none'}`);
-          this.log.error(`Body preview: ${data.substring(0, 800)}`);
-          reject(new Error(`Failed to get authorization code at depth ${depth}`));
-        });
-      });
+            this.log.error(`No authorization code found at depth ${depth}`);
+            this.log.error(`Status: ${res.statusCode}, Location: ${locationHeader || 'none'}`);
+            this.log.error(`Body preview: ${data.substring(0, 800)}`);
+            reject(new Error(`Failed to get authorization code at depth ${depth}`));
+          });
+        },
+      );
 
       req.on('error', reject);
       req.end();
@@ -527,14 +531,18 @@ export class OAuthHelper {
       code_verifier: codeVerifier,
     });
 
-    const response = await this.httpsRequest(TOKEN_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': Buffer.byteLength(tokenData.toString()).toString(),
-        'Authorization': 'Basic aG9tZW1vYmlsZTo=', // base64(homemobile:)
+    const response = await this.httpsRequest(
+      TOKEN_ENDPOINT,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(tokenData.toString()).toString(),
+          Authorization: 'Basic aG9tZW1vYmlsZTo=', // base64(homemobile:)
+        },
       },
-    }, tokenData.toString());
+      tokenData.toString(),
+    );
 
     const tokens = JSON.parse(response);
 
@@ -600,5 +608,4 @@ export class OAuthHelper {
       throw error;
     }
   }
-
 }

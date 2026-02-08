@@ -1,10 +1,18 @@
-import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
-import { MELCloudAPI, AirToAirUnit } from './melcloud-api';
+import type {
+  API,
+  Characteristic,
+  DynamicPlatformPlugin,
+  Logger,
+  PlatformAccessory,
+  PlatformConfig,
+  Service,
+} from 'homebridge';
 import { MELCloudAccessory } from './accessory';
-import { FanSpeedButton } from './fan-speed-button';
-import { VaneButton } from './vane-button';
 import { ConfigManager } from './config-manager';
+import { FanSpeedButton } from './fan-speed-button';
+import { type AirToAirUnit, MELCloudAPI } from './melcloud-api';
+import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
+import { VaneButton } from './vane-button';
 
 export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
@@ -127,7 +135,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
       for (const device of devices) {
         // Main AC accessory
         const uuid = this.api.hap.uuid.generate(device.id);
-        const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
+        const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
 
         if (existingAccessory) {
           // Update existing accessory
@@ -162,7 +170,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
           for (const speedKey of speeds) {
             const buttonUuid = this.api.hap.uuid.generate(`${device.id}-fan-${speedKey}`);
-            const existingButton = this.accessories.find(accessory => accessory.UUID === buttonUuid);
+            const existingButton = this.accessories.find((accessory) => accessory.UUID === buttonUuid);
 
             const speedName = FanSpeedButton.SPEED_NAMES[FanSpeedButton.SPEED_API_VALUES[speedKey]] || speedKey;
 
@@ -199,7 +207,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
           for (const positionKey of positions) {
             const buttonUuid = this.api.hap.uuid.generate(`${device.id}-vane-${positionKey}`);
-            const existingButton = this.accessories.find(accessory => accessory.UUID === buttonUuid);
+            const existingButton = this.accessories.find((accessory) => accessory.UUID === buttonUuid);
 
             const positionName = VaneButton.POSITION_NAMES[positionKey] || positionKey;
 
@@ -229,13 +237,13 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
       }
 
       // Remove accessories that no longer exist OR are disabled by config
-      const devicesIds = devices.map(d => d.id);
+      const devicesIds = devices.map((d) => d.id);
       const fanSpeedButtonsConfig = this.config.fanSpeedButtons || 'none';
       // Support new vaneControl and legacy vaneButtons
       const vaneControlConfig = this.config.vaneControl || this.config.vaneButtons || 'none';
       const vaneButtonsEnabled = vaneControlConfig === 'buttons' || vaneControlConfig === 'simple';
 
-      const accessoriesToRemove = this.accessories.filter(accessory => {
+      const accessoriesToRemove = this.accessories.filter((accessory) => {
         const deviceId = accessory.context.device?.id;
 
         // Remove if device no longer exists
@@ -263,11 +271,12 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
         // Remove fan buttons that don't match current config (e.g., 'all' buttons when config is 'simple')
         if (accessory.context.isFanButton && accessory.context.speedKey) {
-          const configSpeeds = fanSpeedButtonsConfig === 'simple'
-            ? ['auto', 'quiet', 'max']
-            : fanSpeedButtonsConfig === 'all'
-              ? ['auto', 'quiet', '2', '3', '4', 'max']
-              : [];
+          const configSpeeds =
+            fanSpeedButtonsConfig === 'simple'
+              ? ['auto', 'quiet', 'max']
+              : fanSpeedButtonsConfig === 'all'
+                ? ['auto', 'quiet', '2', '3', '4', 'max']
+                : [];
           if (!configSpeeds.includes(accessory.context.speedKey)) {
             this.log.info(`Removing fan button (not in ${fanSpeedButtonsConfig}):`, accessory.displayName);
             return true;
@@ -297,7 +306,6 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
       // Start refresh interval
       this.startRefreshInterval();
-
     } catch (error) {
       this.log.error('Failed to discover devices. This usually means:');
       this.log.error('  1. Your cookies have expired - please login again');
@@ -366,7 +374,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
     return this.melcloudAPI;
   }
 
-  public async refreshDevice(deviceId: string) {
+  public async refreshDevice(_deviceId: string) {
     try {
       const devices = await this.getAPI().getAllDevices();
       // Update all device accessories from the same response to avoid redundant API calls
@@ -384,7 +392,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   private updateDeviceAccessories(device: AirToAirUnit) {
     // Update main AC accessory
     const uuid = this.api.hap.uuid.generate(device.id);
-    const accessory = this.accessories.find(acc => acc.UUID === uuid);
+    const accessory = this.accessories.find((acc) => acc.UUID === uuid);
     const accessoryInstance = this.accessoryInstances.get(uuid);
 
     if (accessory && accessoryInstance) {
@@ -395,7 +403,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
     // Update Fan Speed Buttons
     for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
-      const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+      const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
       if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
         buttonAccessory.context.device = device;
         this.api.updatePlatformAccessories([buttonAccessory]);
@@ -405,7 +413,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
     // Update Vane Buttons
     for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
-      const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+      const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
       if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
         buttonAccessory.context.device = device;
         this.api.updatePlatformAccessories([buttonAccessory]);
@@ -437,7 +445,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
    */
   public updateFanButtonsForDevice(device: AirToAirUnit) {
     for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
-      const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+      const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
       // Check if this button belongs to the same device by comparing device IDs in context
       if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
         buttonAccessory.context.device = device;
@@ -453,7 +461,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
    */
   public updateVaneButtonsForDevice(device: AirToAirUnit) {
     for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
-      const buttonAccessory = this.accessories.find(acc => acc.UUID === buttonUuid);
+      const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
       // Check if this button belongs to the same device by comparing device IDs in context
       if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
         buttonAccessory.context.device = device;

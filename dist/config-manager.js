@@ -11,13 +11,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConfigManager = void 0;
-const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
+const node_fs_1 = __importDefault(require("node:fs"));
+const node_path_1 = __importDefault(require("node:path"));
 class ConfigManager {
     constructor(log, storagePath) {
         this.log = log;
         // Homebridge config.json is in the storage path
-        this.configPath = path_1.default.join(storagePath, 'config.json');
+        this.configPath = node_path_1.default.join(storagePath, 'config.json');
         this.log.debug('Config path:', this.configPath);
     }
     /**
@@ -28,7 +28,7 @@ class ConfigManager {
             this.log.debug(`Saving refresh token to config at: ${this.configPath}`);
             // Check if config file exists and is writable
             try {
-                await fs_1.default.promises.access(this.configPath, fs_1.default.constants.W_OK);
+                await node_fs_1.default.promises.access(this.configPath, node_fs_1.default.constants.W_OK);
             }
             catch {
                 this.log.error(`Config file not found or not writable: ${this.configPath}`);
@@ -36,7 +36,7 @@ class ConfigManager {
                 return false;
             }
             // Read current config
-            const configData = await fs_1.default.promises.readFile(this.configPath, 'utf8');
+            const configData = await node_fs_1.default.promises.readFile(this.configPath, 'utf8');
             const config = JSON.parse(configData);
             if (!config || typeof config !== 'object' || Array.isArray(config)) {
                 this.log.error('Config file has invalid structure (not a JSON object)');
@@ -61,9 +61,9 @@ class ConfigManager {
                 delete config.platforms[platformIndex].password;
             }
             // Write atomically: write to temp file, then rename over original
-            const tmpPath = this.configPath + '.tmp';
-            await fs_1.default.promises.writeFile(tmpPath, JSON.stringify(config, null, 4), 'utf8');
-            await fs_1.default.promises.rename(tmpPath, this.configPath);
+            const tmpPath = `${this.configPath}.tmp`;
+            await node_fs_1.default.promises.writeFile(tmpPath, JSON.stringify(config, null, 4), 'utf8');
+            await node_fs_1.default.promises.rename(tmpPath, this.configPath);
             this.log.info('✅ Refresh token saved to config successfully!');
             this.log.info('   Future restarts will use the saved token automatically');
             return true;
