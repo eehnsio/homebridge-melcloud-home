@@ -23,7 +23,7 @@ class MELCloudHomePlatform {
         this.configManager = new config_manager_1.ConfigManager(this.log, this.api.user.storagePath());
         this.api.on('didFinishLaunching', async () => {
             try {
-                this.log.info('Homebridge finished launching...');
+                this.debugLog('Homebridge finished launching...');
                 await this.initializeAuthentication();
             }
             catch (error) {
@@ -57,19 +57,19 @@ class MELCloudHomePlatform {
         const hasRefreshToken = this.config.refreshToken;
         // Refresh Token Authentication (Only method)
         if (hasRefreshToken) {
-            this.log.info('🔑 Using refresh token authentication (recommended)');
+            this.debugLog('Using refresh token authentication');
             try {
                 this.melcloudAPI = new melcloud_api_1.MELCloudAPI({
                     refreshToken: this.config.refreshToken,
                     debug: this.config.debug || false,
                     onTokenRefresh: async (newRefreshToken) => {
                         // Save the new refresh token to config when it rotates
-                        this.log.info('🔄 Refresh token rotated by MELCloud API');
+                        this.debugLog('Refresh token rotated by MELCloud API');
                         await this.configManager.saveRefreshToken(newRefreshToken);
                     },
                     debugLog: (msg) => this.debugLog(msg),
                 });
-                this.log.info('✅ MELCloud API initialized successfully');
+                this.debugLog('MELCloud API initialized successfully');
                 await this.discoverDevices();
                 return;
             }
@@ -90,14 +90,13 @@ class MELCloudHomePlatform {
         this.log.warn('');
     }
     configureAccessory(accessory) {
-        this.log.info('Loading accessory from cache:', accessory.displayName);
+        this.log.debug('Loading accessory from cache:', accessory.displayName);
         this.accessories.push(accessory);
     }
     async discoverDevices() {
-        this.log.info('Discovering MELCloud Home devices...');
+        this.debugLog('Discovering MELCloud Home devices...');
         try {
             const devices = await this.getAPI().getAllDevices();
-            this.log.info(`Found ${devices.length} device(s)`);
             if (devices.length === 0) {
                 this.log.warn('No devices found. Please check:');
                 this.log.warn('  1. Your MELCloud Home account has devices configured');
@@ -112,7 +111,7 @@ class MELCloudHomePlatform {
                 const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
                 if (existingAccessory) {
                     // Update existing accessory
-                    this.log.info('Restoring existing accessory from cache:', device.givenDisplayName);
+                    this.debugLog('Restoring existing accessory from cache: ' + device.givenDisplayName);
                     existingAccessory.context.device = device;
                     this.api.updatePlatformAccessories([existingAccessory]);
                     const accessoryInstance = new accessory_1.MELCloudAccessory(this, existingAccessory);
@@ -120,7 +119,7 @@ class MELCloudHomePlatform {
                 }
                 else {
                     // Create new accessory
-                    this.log.info('Adding new accessory:', device.givenDisplayName);
+                    this.debugLog('Adding new accessory: ' + device.givenDisplayName);
                     const accessory = new this.api.platformAccessory(device.givenDisplayName, uuid);
                     accessory.context.device = device;
                     this.accessories.push(accessory); // Add to our array for refresh to find it!
@@ -147,7 +146,7 @@ class MELCloudHomePlatform {
                         const existingButton = this.accessories.find((accessory) => accessory.UUID === buttonUuid);
                         const speedName = fan_speed_button_1.FanSpeedButton.SPEED_NAMES[fan_speed_button_1.FanSpeedButton.SPEED_API_VALUES[speedKey]] || speedKey;
                         if (existingButton) {
-                            this.log.info(`Restoring Fan ${speedName} button from cache:`, device.givenDisplayName);
+                            this.debugLog(`Restoring Fan ${speedName} button from cache: ${device.givenDisplayName}`);
                             existingButton.context.device = device;
                             existingButton.context.speedKey = speedKey;
                             this.api.updatePlatformAccessories([existingButton]);
@@ -155,7 +154,7 @@ class MELCloudHomePlatform {
                             this.fanButtonInstances.set(buttonUuid, buttonInstance);
                         }
                         else {
-                            this.log.info(`Adding Fan ${speedName} button:`, device.givenDisplayName);
+                            this.debugLog(`Adding Fan ${speedName} button: ${device.givenDisplayName}`);
                             const buttonAccessory = new this.api.platformAccessory(`${device.givenDisplayName} Fan ${speedName}`, buttonUuid);
                             buttonAccessory.context.device = device;
                             buttonAccessory.context.speedKey = speedKey;
@@ -178,7 +177,7 @@ class MELCloudHomePlatform {
                         const existingButton = this.accessories.find((accessory) => accessory.UUID === buttonUuid);
                         const positionName = vane_button_1.VaneButton.POSITION_NAMES[positionKey] || positionKey;
                         if (existingButton) {
-                            this.log.info(`Restoring Vane ${positionName} button from cache:`, device.givenDisplayName);
+                            this.debugLog(`Restoring Vane ${positionName} button from cache: ${device.givenDisplayName}`);
                             existingButton.context.device = device;
                             existingButton.context.positionKey = positionKey;
                             this.api.updatePlatformAccessories([existingButton]);
@@ -186,7 +185,7 @@ class MELCloudHomePlatform {
                             this.vaneButtonInstances.set(buttonUuid, buttonInstance);
                         }
                         else {
-                            this.log.info(`Adding Vane ${positionName} button:`, device.givenDisplayName);
+                            this.debugLog(`Adding Vane ${positionName} button: ${device.givenDisplayName}`);
                             const buttonAccessory = new this.api.platformAccessory(`${device.givenDisplayName} Vane ${positionName}`, buttonUuid);
                             buttonAccessory.context.device = device;
                             buttonAccessory.context.positionKey = positionKey;
@@ -213,17 +212,17 @@ class MELCloudHomePlatform {
                 }
                 // Remove old swing accessories (deprecated - replaced by vane buttons)
                 if (accessory.context.isSwingAccessory) {
-                    this.log.info('Removing deprecated swing accessory:', accessory.displayName);
+                    this.debugLog('Removing deprecated swing accessory: ' + accessory.displayName);
                     return true;
                 }
                 // Remove old fan slider accessory (deprecated)
                 if (accessory.context.isFanAccessory) {
-                    this.log.info('Removing deprecated fan slider accessory:', accessory.displayName);
+                    this.debugLog('Removing deprecated fan slider accessory: ' + accessory.displayName);
                     return true;
                 }
                 // Remove fan buttons if fanSpeedButtons is 'none'
                 if (accessory.context.isFanButton && fanSpeedButtonsConfig === 'none') {
-                    this.log.info('Removing fan button (fanSpeedButtons=none):', accessory.displayName);
+                    this.debugLog('Removing fan button (fanSpeedButtons=none): ' + accessory.displayName);
                     return true;
                 }
                 // Remove fan buttons that don't match current config (e.g., 'all' buttons when config is 'simple')
@@ -234,19 +233,19 @@ class MELCloudHomePlatform {
                             ? ['auto', 'quiet', '2', '3', '4', 'max']
                             : [];
                     if (!configSpeeds.includes(accessory.context.speedKey)) {
-                        this.log.info(`Removing fan button (not in ${fanSpeedButtonsConfig}):`, accessory.displayName);
+                        this.debugLog(`Removing fan button (not in ${fanSpeedButtonsConfig}): ${accessory.displayName}`);
                         return true;
                     }
                 }
                 // Remove vane buttons if vaneControl is disabled
                 if (accessory.context.isVaneButton && !vaneButtonsEnabled) {
-                    this.log.info('Removing vane button (vaneControl disabled):', accessory.displayName);
+                    this.debugLog('Removing vane button (vaneControl disabled): ' + accessory.displayName);
                     return true;
                 }
                 return false;
             });
             if (accessoriesToRemove.length > 0) {
-                this.log.info(`Removing ${accessoriesToRemove.length} cached accessory(ies)`);
+                this.debugLog(`Removing ${accessoriesToRemove.length} cached accessory(ies)`);
                 this.api.unregisterPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, accessoriesToRemove);
                 // Also remove from our local array
                 for (const acc of accessoriesToRemove) {
@@ -256,6 +255,9 @@ class MELCloudHomePlatform {
                     }
                 }
             }
+            // Log startup summary (the only info-level startup message)
+            const interval = Math.max(10, Math.min(3600, this.config.refreshInterval || 30));
+            this.log.info(`Initialized with ${devices.length} device(s), refresh interval ${interval}s`);
             // Start refresh interval
             this.startRefreshInterval();
         }
@@ -281,7 +283,7 @@ class MELCloudHomePlatform {
     }
     startRefreshInterval() {
         const interval = Math.max(10, Math.min(3600, this.config.refreshInterval || 30)) * 1000;
-        this.log.info(`Refresh interval: ${interval / 1000}s`);
+        this.debugLog(`Refresh interval: ${interval / 1000}s`);
         // Initial refresh to sync state
         setImmediate(async () => {
             try {

@@ -64,7 +64,7 @@ class VaneButton {
     async setOn(value) {
         const turnOn = value;
         const positionName = VaneButton.POSITION_NAMES[this.positionKey] || this.positionKey;
-        this.platform.log.info(`[${this.device.givenDisplayName} Vane ${positionName}] Set On: ${turnOn}`);
+        this.platform.debugLog(`[${this.device.givenDisplayName} Vane ${positionName}] Set On: ${turnOn}`);
         if (!turnOn) {
             // When turning OFF this button, set vane to Auto (don't power off AC)
             // But only if this position is currently active
@@ -79,7 +79,7 @@ class VaneButton {
     async setVanePosition(vaneDirection, forcePowerOn) {
         const settings = this.getSettings();
         const power = forcePowerOn ? true : settings.Power === 'True';
-        this.platform.log.info(`[${this.device.givenDisplayName} Vane] Sending API command: vaneVerticalDirection=${vaneDirection}`);
+        this.platform.debugLog(`[${this.device.givenDisplayName} Vane] Sending API command: vaneVerticalDirection=${vaneDirection}`);
         try {
             await this.platform.getAPI().controlDevice(this.device.id, {
                 power,

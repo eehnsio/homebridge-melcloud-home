@@ -122,7 +122,7 @@ export class FanSpeedButton {
     const turnOn = value as boolean;
     const speedName = this.getSpeedDisplayName();
 
-    this.platform.log.info(`[${this.device.givenDisplayName} Fan ${speedName}] Set On: ${turnOn}`);
+    this.platform.debugLog(`[${this.device.givenDisplayName} Fan ${speedName}] Set On: ${turnOn}`);
 
     if (!turnOn) {
       // When turning OFF this button, set fan to Auto (don't power off AC)

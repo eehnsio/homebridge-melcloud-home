@@ -75,8 +75,7 @@ export class ConfigManager {
       await fs.promises.writeFile(tmpPath, JSON.stringify(config, null, 4), 'utf8');
       await fs.promises.rename(tmpPath, this.configPath);
 
-      this.log.info('✅ Refresh token saved to config successfully!');
-      this.log.info('   Future restarts will use the saved token automatically');
+      this.log.debug('Refresh token saved to config');
       return true;
     } catch (error) {
       this.log.error('Failed to save refresh token to config:', error instanceof Error ? error.message : String(error));

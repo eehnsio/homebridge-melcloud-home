@@ -64,8 +64,7 @@ class ConfigManager {
             const tmpPath = `${this.configPath}.tmp`;
             await node_fs_1.default.promises.writeFile(tmpPath, JSON.stringify(config, null, 4), 'utf8');
             await node_fs_1.default.promises.rename(tmpPath, this.configPath);
-            this.log.info('✅ Refresh token saved to config successfully!');
-            this.log.info('   Future restarts will use the saved token automatically');
+            this.log.debug('Refresh token saved to config');
             return true;
         }
         catch (error) {

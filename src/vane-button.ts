@@ -99,7 +99,7 @@ export class VaneButton {
     const turnOn = value as boolean;
     const positionName = VaneButton.POSITION_NAMES[this.positionKey] || this.positionKey;
 
-    this.platform.log.info(`[${this.device.givenDisplayName} Vane ${positionName}] Set On: ${turnOn}`);
+    this.platform.debugLog(`[${this.device.givenDisplayName} Vane ${positionName}] Set On: ${turnOn}`);
 
     if (!turnOn) {
       // When turning OFF this button, set vane to Auto (don't power off AC)
@@ -118,7 +118,7 @@ export class VaneButton {
     const settings = this.getSettings();
     const power = forcePowerOn ? true : settings.Power === 'True';
 
-    this.platform.log.info(
+    this.platform.debugLog(
       `[${this.device.givenDisplayName} Vane] Sending API command: vaneVerticalDirection=${vaneDirection}`,
     );
 
