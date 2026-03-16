@@ -9,13 +9,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required for creating releases
       id-token: write # Required for provenance
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetch all history for changelog generation
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -54,32 +53,3 @@ jobs:
         run: npm publish --tag ${{ steps.npm-tag.outputs.tag }} --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          # Get the previous tag
-          PREV_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
-
-          if [ -z "$PREV_TAG" ]; then
-            echo "First release - no previous tag found"
-            CHANGELOG="Initial release"
-          else
-            echo "Generating changelog from $PREV_TAG to $GITHUB_REF_NAME"
-            CHANGELOG=$(git log $PREV_TAG..$GITHUB_REF_NAME --pretty=format:"- %s (%h)" --no-merges)
-          fi
-
-          # Write changelog to file for use in release
-          echo "$CHANGELOG" > changelog.txt
-          cat changelog.txt
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ steps.version.outputs.version }}
-          body_path: changelog.txt
-          prerelease: ${{ steps.npm-tag.outputs.prerelease }}
-          generate_release_notes: true # GitHub auto-generates additional notes
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
