@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.4](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.4.3...homebridge-melcloud-home-v1.4.4) (2026-03-29)
+
+
+### Code Refactoring
+
+* harden API client, config handling, and UI robustness ([d45b07e](https://github.com/eehnsio/homebridge-melcloud-home/commit/d45b07e41079311758c3dcd9c8fc34bec9a52e23))
+* minimize info-level logging for quiet normal operation ([60db856](https://github.com/eehnsio/homebridge-melcloud-home/commit/60db856b75d8f0bc0056774eb4424be1278ab4a9))
+* move periodic logging to debug-only mode ([16986e9](https://github.com/eehnsio/homebridge-melcloud-home/commit/16986e94b478a720f51a605d695bb7aff7ef4abd)), closes [#9](https://github.com/eehnsio/homebridge-melcloud-home/issues/9)
+* switch to push-only model to prevent stale HomeKit tiles ([263880b](https://github.com/eehnsio/homebridge-melcloud-home/commit/263880bc8c662b1cb2817e847a01aedfa0699feb))
+
+
+### Documentation
+
+* simplify CONTRIBUTING.md and encourage issue-first workflow ([d5e838e](https://github.com/eehnsio/homebridge-melcloud-home/commit/d5e838ebe607415d6e859bf8a40066ace6dee4a9))
+
+
+### Miscellaneous
+
+* add Biome for formatting and linting ([ad6d1db](https://github.com/eehnsio/homebridge-melcloud-home/commit/ad6d1dbead03786c9dfccaa8d0a94925b6588465))
+* remove redundant build workflow ([f4d10d9](https://github.com/eehnsio/homebridge-melcloud-home/commit/f4d10d9ce50e1916f1cab554dbaf0bdfaeab447f))
+* set up release-please for automated releases ([69cfcee](https://github.com/eehnsio/homebridge-melcloud-home/commit/69cfcee618b958fe62ed655debe45da90ca50362))
+
 ## [1.4.3] - 2026-02-07
 
 ### Improved
