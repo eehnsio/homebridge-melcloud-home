@@ -14,15 +14,17 @@ export declare class MELCloudAccessory {
     private coolingThreshold?;
     constructor(platform: MELCloudHomePlatform, accessory: PlatformAccessory);
     private getSettings;
-    getActive(): Promise<CharacteristicValue>;
     setActive(value: CharacteristicValue): Promise<void>;
-    getCurrentState(): Promise<CharacteristicValue>;
-    getTargetState(): Promise<CharacteristicValue>;
+    /**
+     * Compute current heater/cooler state from device settings
+     */
+    private computeCurrentState;
+    /**
+     * Compute target heater/cooler state from device settings
+     */
+    private computeTargetState;
     setTargetState(value: CharacteristicValue): Promise<void>;
-    getCurrentTemperature(): Promise<CharacteristicValue>;
-    getCoolingThresholdTemperature(): Promise<CharacteristicValue>;
     setCoolingThresholdTemperature(value: CharacteristicValue): Promise<void>;
-    getHeatingThresholdTemperature(): Promise<CharacteristicValue>;
     setHeatingThresholdTemperature(value: CharacteristicValue): Promise<void>;
     /**
      * Calculate and send midpoint temperature when in AUTO mode
@@ -30,7 +32,6 @@ export declare class MELCloudAccessory {
      */
     private updateAutoModeTemperature;
     private setTemperature;
-    getRotationSpeed(): Promise<CharacteristicValue>;
     setRotationSpeed(value: CharacteristicValue): Promise<void>;
     private updateCharacteristics;
     /**

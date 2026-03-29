@@ -2,12 +2,6 @@ import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge
 import { type AirToAirUnit, MELCloudAPI } from './melcloud-api';
 import type { MELCloudHomePlatform } from './platform';
 
-interface MELCloudContext {
-  device: AirToAirUnit;
-  heatingThreshold?: number;
-  coolingThreshold?: number;
-}
-
 export class MELCloudAccessory {
   private service: Service;
   private temperatureSensor?: Service;
@@ -45,24 +39,14 @@ export class MELCloudAccessory {
 
     this.service.setCharacteristic(this.platform.Characteristic.Name, this.device.givenDisplayName);
 
-    // Register handlers
-    this.service
-      .getCharacteristic(this.platform.Characteristic.Active)
-      .onGet(this.getActive.bind(this))
-      .onSet(this.setActive.bind(this));
-
-    this.service
-      .getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState)
-      .onGet(this.getCurrentState.bind(this));
+    // Register handlers (push-only model: no onGet handlers, state is pushed via updateValue
+    // during polling. This prevents HomeKit from marking accessories as "Not Responding" after
+    // periods of inactivity, since we don't rely on HAP event subscriptions staying alive.)
+    this.service.getCharacteristic(this.platform.Characteristic.Active).onSet(this.setActive.bind(this));
 
     this.service
       .getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState)
-      .onGet(this.getTargetState.bind(this))
       .onSet(this.setTargetState.bind(this));
-
-    this.service
-      .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-      .onGet(this.getCurrentTemperature.bind(this));
 
     // HomeKit has strict minimum values for temperature thresholds
     // Cooling: min 10°C (actually enforces 16°C in practice)
@@ -81,7 +65,6 @@ export class MELCloudAccessory {
         maxValue: this.device.capabilities.maxTempCoolDry,
         minStep: this.device.capabilities.hasHalfDegreeIncrements ? 0.5 : 1,
       })
-      .onGet(this.getCoolingThresholdTemperature.bind(this))
       .onSet(this.setCoolingThresholdTemperature.bind(this));
 
     // Set up heating threshold with safe default value first to avoid validation warnings
@@ -94,7 +77,6 @@ export class MELCloudAccessory {
         maxValue: this.device.capabilities.maxTempHeat,
         minStep: this.device.capabilities.hasHalfDegreeIncrements ? 0.5 : 1,
       })
-      .onGet(this.getHeatingThresholdTemperature.bind(this))
       .onSet(this.setHeatingThresholdTemperature.bind(this));
 
     // Optional: Rotation Speed for fan speed
@@ -107,7 +89,6 @@ export class MELCloudAccessory {
           maxValue: this.device.capabilities.numberOfFanSpeeds + 1, // +1 because we shifted range
           minStep: 1,
         })
-        .onGet(this.getRotationSpeed.bind(this))
         .onSet(this.setRotationSpeed.bind(this));
     }
 
@@ -126,9 +107,7 @@ export class MELCloudAccessory {
         `${this.device.givenDisplayName} Temperature`,
       );
 
-      this.temperatureSensor
-        .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-        .onGet(this.getCurrentTemperature.bind(this));
+      // No onGet — state is pushed via updateValue() during polling
     } else {
       // Remove temperature sensor if it exists but is now disabled
       const existingSensor = this.accessory.getService(this.platform.Service.TemperatureSensor);
@@ -170,21 +149,6 @@ export class MELCloudAccessory {
 
   private getSettings() {
     return MELCloudAPI.parseSettings(this.device.settings);
-  }
-
-  // Active (On/Off)
-  async getActive(): Promise<CharacteristicValue> {
-    try {
-      const settings = this.getSettings();
-      const isActive = settings.Power === 'True';
-      this.platform.debugLog(`[${this.device.givenDisplayName}] Get Active:`, isActive);
-      return isActive ? this.platform.Characteristic.Active.ACTIVE : this.platform.Characteristic.Active.INACTIVE;
-    } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Error in getActive:`, error);
-      // Return last known value from cache to prevent HomeKit "Not Responding"
-      const cached = this.service.getCharacteristic(this.platform.Characteristic.Active).value;
-      return cached ?? this.platform.Characteristic.Active.INACTIVE;
-    }
   }
 
   async setActive(value: CharacteristicValue) {
@@ -293,83 +257,63 @@ export class MELCloudAccessory {
     }
   }
 
-  // Current State (Idle/Heating/Cooling)
-  async getCurrentState(): Promise<CharacteristicValue> {
-    try {
-      const settings = this.getSettings();
-      const power = settings.Power === 'True';
-      const mode = settings.OperationMode;
+  /**
+   * Compute current heater/cooler state from device settings
+   */
+  private computeCurrentState(settings: Record<string, string>): CharacteristicValue {
+    const power = settings.Power === 'True';
+    const mode = settings.OperationMode;
 
-      if (!power) {
-        return this.platform.Characteristic.CurrentHeaterCoolerState.INACTIVE;
-      }
-
-      switch (mode) {
-        case 'Heat': {
-          const roomTemp = parseFloat(settings.RoomTemperature);
-          const targetTemp = parseFloat(settings.SetTemperature);
-          if (Number.isNaN(roomTemp) || Number.isNaN(targetTemp)) {
-            return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
-          }
-          // Only show heating if room is below target
-          return roomTemp < targetTemp
-            ? this.platform.Characteristic.CurrentHeaterCoolerState.HEATING
-            : this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
-        }
-        case 'Cool': {
-          const roomTemp = parseFloat(settings.RoomTemperature);
-          const targetTemp = parseFloat(settings.SetTemperature);
-          if (Number.isNaN(roomTemp) || Number.isNaN(targetTemp)) {
-            return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
-          }
-          // Only show cooling if room is above target
-          return roomTemp > targetTemp
-            ? this.platform.Characteristic.CurrentHeaterCoolerState.COOLING
-            : this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
-        }
-        case 'Automatic': // Auto mode - infer state from room temp vs target
-        case 'Auto': {
-          const roomTemp = parseFloat(settings.RoomTemperature);
-          const targetTemp = parseFloat(settings.SetTemperature);
-          if (Number.isNaN(roomTemp) || Number.isNaN(targetTemp)) {
-            return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
-          }
-
-          // Use 1°C hysteresis to match typical device behavior
-          // Device heats if room < target - 1°C, cools if room > target + 1°C
-          if (roomTemp < targetTemp - 1) {
-            return this.platform.Characteristic.CurrentHeaterCoolerState.HEATING;
-          } else if (roomTemp > targetTemp + 1) {
-            return this.platform.Characteristic.CurrentHeaterCoolerState.COOLING;
-          }
-          return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
-        }
-        default:
-          return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
-      }
-    } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Error in getCurrentState:`, error);
+    if (!power) {
       return this.platform.Characteristic.CurrentHeaterCoolerState.INACTIVE;
+    }
+
+    const roomTemp = parseFloat(settings.RoomTemperature);
+    const targetTemp = parseFloat(settings.SetTemperature);
+
+    switch (mode) {
+      case 'Heat':
+        if (Number.isNaN(roomTemp) || Number.isNaN(targetTemp)) {
+          return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+        }
+        return roomTemp < targetTemp
+          ? this.platform.Characteristic.CurrentHeaterCoolerState.HEATING
+          : this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+      case 'Cool':
+        if (Number.isNaN(roomTemp) || Number.isNaN(targetTemp)) {
+          return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+        }
+        return roomTemp > targetTemp
+          ? this.platform.Characteristic.CurrentHeaterCoolerState.COOLING
+          : this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+      case 'Automatic':
+      case 'Auto': {
+        if (Number.isNaN(roomTemp) || Number.isNaN(targetTemp)) {
+          return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+        }
+        if (roomTemp < targetTemp - 1) {
+          return this.platform.Characteristic.CurrentHeaterCoolerState.HEATING;
+        } else if (roomTemp > targetTemp + 1) {
+          return this.platform.Characteristic.CurrentHeaterCoolerState.COOLING;
+        }
+        return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
+      }
+      default:
+        return this.platform.Characteristic.CurrentHeaterCoolerState.IDLE;
     }
   }
 
-  // Target State (Auto/Heat/Cool)
-  async getTargetState(): Promise<CharacteristicValue> {
-    try {
-      const settings = this.getSettings();
-      const mode = settings.OperationMode;
-
-      switch (mode) {
-        case 'Heat':
-          return this.platform.Characteristic.TargetHeaterCoolerState.HEAT;
-        case 'Cool':
-          return this.platform.Characteristic.TargetHeaterCoolerState.COOL;
-        default:
-          return this.platform.Characteristic.TargetHeaterCoolerState.AUTO;
-      }
-    } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Error in getTargetState:`, error);
-      return this.platform.Characteristic.TargetHeaterCoolerState.AUTO;
+  /**
+   * Compute target heater/cooler state from device settings
+   */
+  private computeTargetState(settings: Record<string, string>): CharacteristicValue {
+    switch (settings.OperationMode) {
+      case 'Heat':
+        return this.platform.Characteristic.TargetHeaterCoolerState.HEAT;
+      case 'Cool':
+        return this.platform.Characteristic.TargetHeaterCoolerState.COOL;
+      default:
+        return this.platform.Characteristic.TargetHeaterCoolerState.AUTO;
     }
   }
 
@@ -438,47 +382,6 @@ export class MELCloudAccessory {
     }
   }
 
-  // Current Temperature
-  async getCurrentTemperature(): Promise<CharacteristicValue> {
-    try {
-      const settings = this.getSettings();
-      const temp = parseFloat(settings.RoomTemperature);
-      // Validate temperature is a reasonable value
-      if (Number.isNaN(temp) || temp < -40 || temp > 60) {
-        this.platform.log.warn(
-          `[${this.device.givenDisplayName}] Invalid temperature: ${settings.RoomTemperature}, using cached value`,
-        );
-        const cached = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
-        return (cached as number) ?? 20;
-      }
-      return temp;
-    } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Error in getCurrentTemperature:`, error);
-      const cached = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
-      return (cached as number) ?? 20;
-    }
-  }
-
-  // Cooling Threshold Temperature
-  async getCoolingThresholdTemperature(): Promise<CharacteristicValue> {
-    try {
-      const settings = this.getSettings();
-      const currentTemp = parseFloat(settings.SetTemperature);
-      const mode = settings.OperationMode;
-
-      // In AUTO mode, use cached cooling threshold for range display
-      if ((mode === 'Automatic' || mode === 'Auto') && this.coolingThreshold !== undefined) {
-        return this.coolingThreshold;
-      }
-
-      // In other modes (Heat/Cool/Fan/Dry), return actual device setpoint
-      return Number.isNaN(currentTemp) ? 24 : currentTemp;
-    } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Error in getCoolingThresholdTemperature:`, error);
-      return this.coolingThreshold ?? 24;
-    }
-  }
-
   async setCoolingThresholdTemperature(value: CharacteristicValue) {
     const temp = value as number;
     this.platform.debugLog(`[${this.device.givenDisplayName}] Set Cooling Threshold: ${temp}`);
@@ -496,26 +399,6 @@ export class MELCloudAccessory {
     } else {
       // In non-AUTO modes, set temperature directly
       await this.setTemperature(temp);
-    }
-  }
-
-  // Heating Threshold Temperature
-  async getHeatingThresholdTemperature(): Promise<CharacteristicValue> {
-    try {
-      const settings = this.getSettings();
-      const currentTemp = parseFloat(settings.SetTemperature);
-      const mode = settings.OperationMode;
-
-      // In AUTO mode, use cached heating threshold for range display
-      if ((mode === 'Automatic' || mode === 'Auto') && this.heatingThreshold !== undefined) {
-        return this.heatingThreshold;
-      }
-
-      // In other modes (Heat/Cool/Fan/Dry), return actual device setpoint
-      return Number.isNaN(currentTemp) ? 20 : currentTemp;
-    } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Error in getHeatingThresholdTemperature:`, error);
-      return this.heatingThreshold ?? 20;
     }
   }
 
@@ -600,40 +483,6 @@ export class MELCloudAccessory {
         error instanceof Error ? error.message : String(error),
       );
       throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-    }
-  }
-
-  // Rotation Speed (Fan Speed)
-  async getRotationSpeed(): Promise<CharacteristicValue> {
-    try {
-      const settings = this.getSettings();
-      const fanSpeedText = settings.SetFanSpeed;
-
-      // Convert API values to numeric speed
-      // IMPORTANT: We use 1-6 instead of 0-5 because HomeKit treats rotation speed 0 as "turn off"
-      // So we shift everything up by 1: Auto=1, One=2, Two=3, etc.
-      const reverseSpeedMap: Record<string, number> = {
-        Auto: 1, // Shifted from 0 to 1
-        One: 2, // Shifted from 1 to 2
-        Two: 3, // Shifted from 2 to 3
-        Three: 4, // Shifted from 3 to 4
-        Four: 5, // Shifted from 4 to 5
-        Five: 6, // Shifted from 5 to 6
-        // Also handle numeric format from API
-        '0': 1,
-        '1': 2,
-        '2': 3,
-        '3': 4,
-        '4': 5,
-        '5': 6,
-      };
-
-      const speed = reverseSpeedMap[fanSpeedText] ?? 1;
-      this.platform.debugLog(`[${this.device.givenDisplayName}] Get Rotation Speed: ${speed} (from: ${fanSpeedText})`);
-      return speed;
-    } catch (error) {
-      this.platform.log.error(`[${this.device.givenDisplayName}] Error in getRotationSpeed:`, error);
-      return 1; // Default to Auto
     }
   }
 
@@ -748,52 +597,43 @@ export class MELCloudAccessory {
       `[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`,
     );
 
-    // Only update characteristics if values have actually changed
-    // This prevents HomeKit from showing errors when settings panel is open
+    // Push ALL key characteristics via updateValue() every cycle as a heartbeat.
+    // This keeps HAP event subscriptions alive and prevents HomeKit from marking
+    // accessories as "Not Responding" after periods of inactivity.
 
     const activeValue = settings.Power === 'True' ? 1 : 0;
-    const cachedActive = this.service.getCharacteristic(this.platform.Characteristic.Active).value;
-    if (activeValue !== cachedActive) {
-      this.service.updateCharacteristic(this.platform.Characteristic.Active, activeValue);
-    }
+    this.service.getCharacteristic(this.platform.Characteristic.Active).updateValue(activeValue);
 
+    const currentState = this.computeCurrentState(settings);
+    this.service.getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState).updateValue(currentState);
+
+    const targetState = this.computeTargetState(settings);
+    this.service.getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState).updateValue(targetState);
+
+    // Current temperature
     const currentTemp = parseFloat(settings.RoomTemperature);
     const cachedTemp = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
-
     if (currentTemp !== cachedTemp) {
       this.platform.debugLog(
         `[${this.device.givenDisplayName}] Temperature update: ${cachedTemp}°C -> ${currentTemp}°C`,
       );
     }
-
-    // IMPORTANT: Always update CurrentTemperature even if unchanged, as a "heartbeat" to keep
-    // HomeKit aware that the device is responsive. Without periodic updates, HomeKit may
-    // mark accessories as "Not Responding" after periods of inactivity.
-    // Use updateValue() to properly trigger HAP notifications to subscribed clients.
-    // Validate temperature before sending to HomeKit (NaN would cause issues)
     const validCurrentTemp = Number.isNaN(currentTemp) ? ((cachedTemp as number) ?? 20) : currentTemp;
     this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).updateValue(validCurrentTemp);
 
-    // Also update the separate temperature sensor service for automations (if enabled)
     if (this.temperatureSensor) {
       this.temperatureSensor
         .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
         .updateValue(validCurrentTemp);
     }
 
-    // Validate cooling threshold temperature
+    // Threshold temperatures
     const setTemp = parseFloat(settings.SetTemperature);
-    const defaultTemp = 20; // Default to 20°C if temperature is invalid
+    const validSetTemp = Number.isNaN(setTemp) ? 20 : setTemp;
 
-    // Use default if setTemp is NaN or out of valid range
-    const validSetTemp = Number.isNaN(setTemp) ? defaultTemp : setTemp;
-
-    // HomeKit minimums (same as setProps)
     const HOMEKIT_MIN_COOLING = 16;
     const HOMEKIT_MIN_HEATING = 10;
 
-    // Initialize cached thresholds if not set
-    // For AUTO mode: device setpoint is the midpoint, so we calculate ±2°C spread
     if (this.heatingThreshold === undefined) {
       this.heatingThreshold = validSetTemp - 2;
       this.accessory.context.heatingThreshold = this.heatingThreshold;
@@ -803,33 +643,20 @@ export class MELCloudAccessory {
       this.accessory.context.coolingThreshold = this.coolingThreshold;
     }
 
-    // Clamp to both device capabilities AND HomeKit minimums
     const coolingTemp = Math.max(
       Math.max(this.device.capabilities.minTempCoolDry, HOMEKIT_MIN_COOLING),
       Math.min(this.device.capabilities.maxTempCoolDry, this.coolingThreshold),
     );
-    const cachedCoolingTemp = this.service.getCharacteristic(
-      this.platform.Characteristic.CoolingThresholdTemperature,
-    ).value;
-    if (coolingTemp !== cachedCoolingTemp) {
-      this.service.updateCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature, coolingTemp);
-    }
+    this.service.getCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature).updateValue(coolingTemp);
 
-    // Validate heating threshold temperature
     const heatingTemp = Math.max(
       Math.max(this.device.capabilities.minTempHeat, HOMEKIT_MIN_HEATING),
       Math.min(this.device.capabilities.maxTempHeat, this.heatingThreshold),
     );
-    const cachedHeatingTemp = this.service.getCharacteristic(
-      this.platform.Characteristic.HeatingThresholdTemperature,
-    ).value;
-    if (heatingTemp !== cachedHeatingTemp) {
-      this.service.updateCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature, heatingTemp);
-    }
+    this.service.getCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature).updateValue(heatingTemp);
 
+    // Fan speed
     if (this.device.capabilities.numberOfFanSpeeds > 0) {
-      // Convert API values to numeric speed (handle both text and numeric formats)
-      // Use 1-6 range (Auto=1, One=2, ..., Five=6) to match getRotationSpeed
       const reverseSpeedMap: Record<string, number> = {
         Auto: 1,
         One: 2,
@@ -845,11 +672,7 @@ export class MELCloudAccessory {
         '5': 6,
       };
       const speed = reverseSpeedMap[settings.SetFanSpeed] ?? 1;
-      const cachedSpeed = this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed).value;
-
-      if (speed !== cachedSpeed) {
-        this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, speed);
-      }
+      this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed).updateValue(speed);
     }
   }
 
