@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.6](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.4.5...homebridge-melcloud-home-v1.4.6) (2026-03-29)
+
+
+### Miscellaneous
+
+* publish npm directly from release-please workflow ([963405a](https://github.com/eehnsio/homebridge-melcloud-home/commit/963405a48cd0ab0cda146a4505c78dc8e7fe163e))
+
 ## [1.4.5](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.4.4...homebridge-melcloud-home-v1.4.5) (2026-03-29)
 
 
