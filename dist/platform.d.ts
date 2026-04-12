@@ -56,5 +56,10 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
      * have the correct device state for their next API call
      */
     updateAllButtonsForDevice(device: AirToAirUnit): void;
+    /**
+     * Signal communication error on all cached accessories via HAP
+     * Works both before and after accessory instances are created
+     */
+    private setAllAccessoriesFault;
 }
 //# sourceMappingURL=platform.d.ts.map

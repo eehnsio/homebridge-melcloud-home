@@ -264,23 +264,20 @@ class MELCloudHomePlatform {
             this.startRefreshInterval();
         }
         catch (error) {
-            this.log.error('Failed to discover devices. This usually means:');
-            this.log.error('  1. Your cookies have expired - please login again');
-            this.log.error('  2. MELCloud Home API is temporarily unavailable');
-            this.log.error('  3. Network connectivity issues');
-            if (error instanceof Error) {
-                this.log.error('Error details:', error.message);
-                if (error.message.includes('401') || error.message.includes('403')) {
-                    this.log.error('Authentication failed - your cookies are invalid or expired');
-                    this.log.error('Please login again through the plugin settings');
-                }
-                else if (error.message.includes('timeout')) {
-                    this.log.error('Request timed out - check your network connection');
-                }
+            const message = error instanceof Error ? error.message : String(error);
+            const isAuthError = /HTTP (400|401|403)/.test(message);
+            if (isAuthError) {
+                this.log.error('Authentication failed:', message);
+                this.log.error('Please re-authenticate via Homebridge UI → Plugins → MELCloud Home → Settings → LOGIN VIA BROWSER');
+            }
+            else if (message.includes('timeout')) {
+                this.log.error('Request timed out - check your network connection');
             }
             else {
-                this.log.error('Error details:', String(error));
+                this.log.error('Failed to discover devices:', message);
             }
+            // Set StatusFault on cached accessories so HomeKit shows the error
+            this.setAllAccessoriesFault(true);
         }
     }
     startRefreshInterval() {
@@ -301,6 +298,10 @@ class MELCloudHomePlatform {
                 this.debugLog('Refresh cycle starting...');
                 try {
                     await this.refreshAllDevices();
+                    if (this.consecutiveAuthFailures > 0) {
+                        this.log.info('Connection restored.');
+                        // No need to clear fault explicitly — refreshAllDevices already pushed fresh state
+                    }
                     this.consecutiveAuthFailures = 0;
                 }
                 catch (error) {
@@ -315,6 +316,7 @@ class MELCloudHomePlatform {
                             this.log.error('Repeated authentication failures. Your refresh token is likely expired or invalid.');
                             this.log.error('Please re-authenticate via Homebridge UI → Plugins → MELCloud Home → Settings → LOGIN VIA BROWSER');
                             this.log.error('Pausing device refresh until Homebridge is restarted.');
+                            this.setAllAccessoriesFault(true);
                             return; // Stop scheduling further refreshes
                         }
                     }
@@ -444,6 +446,19 @@ class MELCloudHomePlatform {
     updateAllButtonsForDevice(device) {
         this.updateFanButtonsForDevice(device);
         this.updateVaneButtonsForDevice(device);
+    }
+    /**
+     * Signal communication error on all cached accessories via HAP
+     * Works both before and after accessory instances are created
+     */
+    setAllAccessoriesFault(fault) {
+        const hapError = new this.api.hap.HapStatusError(-70402 /* this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
+        for (const accessory of this.accessories) {
+            const heaterCooler = accessory.getService(this.Service.HeaterCooler);
+            if (heaterCooler) {
+                heaterCooler.getCharacteristic(this.Characteristic.Active).updateValue(fault ? hapError : 0);
+            }
+        }
     }
 }
 exports.MELCloudHomePlatform = MELCloudHomePlatform;
