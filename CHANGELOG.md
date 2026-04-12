@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.4.5...homebridge-melcloud-home-v1.5.0) (2026-04-12)
+
+
+### Features
+
+* show "Not Responding" in HomeKit on auth failure ([8711c36](https://github.com/eehnsio/homebridge-melcloud-home/commit/8711c3658fe1184c0b41366db126f3d45c77cefd))
+
+
+### Bug Fixes
+
+* stop spamming logs on auth failure and log response body ([7874bb1](https://github.com/eehnsio/homebridge-melcloud-home/commit/7874bb1f86f78453388af1db0ddf8b1842157395))
+
+
+### Miscellaneous
+
+* publish npm directly from release-please workflow ([963405a](https://github.com/eehnsio/homebridge-melcloud-home/commit/963405a48cd0ab0cda146a4505c78dc8e7fe163e))
+
 ## [1.4.5](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.4.4...homebridge-melcloud-home-v1.4.5) (2026-03-29)
 
 
