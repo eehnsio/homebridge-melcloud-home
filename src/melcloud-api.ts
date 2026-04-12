@@ -5,6 +5,7 @@ export interface MELCloudConfig {
   debug?: boolean;
   onTokenRefresh?: (newRefreshToken: string) => void;
   debugLog?: (message: string) => void;
+  warnLog?: (message: string) => void;
 }
 
 export interface DeviceSetting {
@@ -157,7 +158,7 @@ export class MELCloudAPI {
 
         res.on('end', () => {
           if (res.statusCode !== 200) {
-            this.config.debugLog?.(`[MELCloud] Token refresh response body: ${body}`);
+            this.config.warnLog?.(`[MELCloud] Token refresh failed (HTTP ${res.statusCode}): ${body}`);
             reject(new Error(`Token refresh failed: HTTP ${res.statusCode}`));
             return;
           }

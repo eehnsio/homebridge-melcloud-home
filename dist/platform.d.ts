@@ -14,6 +14,7 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     private refreshInterval?;
     private refreshTimeout?;
     private configManager;
+    private consecutiveAuthFailures;
     constructor(log: Logger, config: PlatformConfig, api: API);
     /**
      * Debug logging helper - respects config.debug flag

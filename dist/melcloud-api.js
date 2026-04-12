@@ -60,7 +60,7 @@ class MELCloudAPI {
                 });
                 res.on('end', () => {
                     if (res.statusCode !== 200) {
-                        this.config.debugLog?.(`[MELCloud] Token refresh response body: ${body}`);
+                        this.config.warnLog?.(`[MELCloud] Token refresh failed (HTTP ${res.statusCode}): ${body}`);
                         reject(new Error(`Token refresh failed: HTTP ${res.statusCode}`));
                         return;
                     }

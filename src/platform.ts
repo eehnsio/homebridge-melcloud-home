@@ -26,6 +26,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   private refreshInterval?: NodeJS.Timeout;
   private refreshTimeout?: NodeJS.Timeout;
   private configManager: ConfigManager;
+  private consecutiveAuthFailures = 0;
 
   constructor(
     public readonly log: Logger,
@@ -88,6 +89,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
             await this.configManager.saveRefreshToken(newRefreshToken);
           },
           debugLog: (msg) => this.debugLog(msg),
+          warnLog: (msg) => this.log.warn(msg),
         });
 
         this.debugLog('MELCloud API initialized successfully');
@@ -348,8 +350,25 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
         this.debugLog('Refresh cycle starting...');
         try {
           await this.refreshAllDevices();
+          this.consecutiveAuthFailures = 0;
         } catch (error) {
-          this.log.error('Failed to refresh devices:', error instanceof Error ? error.message : String(error));
+          const message = error instanceof Error ? error.message : String(error);
+          const isAuthError = /HTTP (400|401|403)/.test(message);
+
+          if (isAuthError) {
+            this.consecutiveAuthFailures++;
+            if (this.consecutiveAuthFailures === 1) {
+              this.log.error('Authentication failed:', message);
+            }
+            if (this.consecutiveAuthFailures === 3) {
+              this.log.error('Repeated authentication failures. Your refresh token is likely expired or invalid.');
+              this.log.error('Please re-authenticate via Homebridge UI → Plugins → MELCloud Home → Settings → LOGIN VIA BROWSER');
+              this.log.error('Pausing device refresh until Homebridge is restarted.');
+              return; // Stop scheduling further refreshes
+            }
+          } else {
+            this.log.error('Failed to refresh devices:', message);
+          }
         }
         scheduleNext();
       }, interval);
