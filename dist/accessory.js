@@ -490,27 +490,30 @@ class MELCloudAccessory {
             return;
         }
         this.platform.debugLog(`[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`);
-        // Push ALL key characteristics via updateValue() every cycle as a heartbeat.
-        // This keeps HAP event subscriptions alive and prevents HomeKit from marking
-        // accessories as "Not Responding" after periods of inactivity.
+        // Push all key characteristics every cycle. CurrentTemperature uses sendEventNotification()
+        // to force a HAP event even when the value is unchanged — updateValue() dedupes unchanged
+        // values and skips the notification, which caused HomeKit to mark accessories as "Not
+        // Responding" after periods of stable temperature.
         const activeValue = settings.Power === 'True' ? 1 : 0;
         this.service.getCharacteristic(this.platform.Characteristic.Active).updateValue(activeValue);
         const currentState = this.computeCurrentState(settings);
         this.service.getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState).updateValue(currentState);
         const targetState = this.computeTargetState(settings);
         this.service.getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState).updateValue(targetState);
-        // Current temperature
+        // Current temperature — forced heartbeat via sendEventNotification()
         const currentTemp = parseFloat(settings.RoomTemperature);
         const cachedTemp = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
         if (currentTemp !== cachedTemp) {
             this.platform.debugLog(`[${this.device.givenDisplayName}] Temperature update: ${cachedTemp}°C -> ${currentTemp}°C`);
         }
         const validCurrentTemp = Number.isNaN(currentTemp) ? (cachedTemp ?? 20) : currentTemp;
-        this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).updateValue(validCurrentTemp);
+        this.service
+            .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+            .sendEventNotification(validCurrentTemp);
         if (this.temperatureSensor) {
             this.temperatureSensor
                 .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-                .updateValue(validCurrentTemp);
+                .sendEventNotification(validCurrentTemp);
         }
         // Threshold temperatures
         const setTemp = parseFloat(settings.SetTemperature);
