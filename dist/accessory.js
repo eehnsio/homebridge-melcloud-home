@@ -21,13 +21,23 @@ class MELCloudAccessory {
             this.accessory.getService(this.platform.Service.HeaterCooler) ||
                 this.accessory.addService(this.platform.Service.HeaterCooler);
         this.service.setCharacteristic(this.platform.Characteristic.Name, this.device.givenDisplayName);
-        // Register handlers (push-only model: no onGet handlers, state is pushed via updateValue
-        // during polling. This prevents HomeKit from marking accessories as "Not Responding" after
-        // periods of inactivity, since we don't rely on HAP event subscriptions staying alive.)
-        this.service.getCharacteristic(this.platform.Characteristic.Active).onSet(this.setActive.bind(this));
+        // Register handlers. We pair each controllable characteristic with an onGet that returns
+        // synchronously from cached device state. HomeKit periodically probes characteristics; if
+        // there is no onGet the probe can mark the accessory as "Not Responding" and that state
+        // sticks until the user opens the accessory detail view. onGet handlers never throw — they
+        // return the last-known value or a safe default.
+        this.service
+            .getCharacteristic(this.platform.Characteristic.Active)
+            .onGet(() => this.getActive())
+            .onSet(this.setActive.bind(this));
+        this.service
+            .getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState)
+            .onGet(() => this.getCurrentState());
         this.service
             .getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState)
+            .onGet(() => this.getTargetState())
             .onSet(this.setTargetState.bind(this));
+        this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).onGet(() => this.getCurrentTemp());
         // HomeKit has strict minimum values for temperature thresholds
         // Cooling: min 10°C (actually enforces 16°C in practice)
         // Heating: min 0°C (actually enforces 10°C in practice)
@@ -37,24 +47,28 @@ class MELCloudAccessory {
         // Set up cooling threshold with safe default value first to avoid validation warnings
         const coolingChar = this.service.getCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature);
         const coolingMin = Math.max(this.device.capabilities.minTempCoolDry, HOMEKIT_MIN_COOLING);
+        const coolingMax = this.device.capabilities.maxTempCoolDry;
         coolingChar.updateValue(coolingMin); // Set safe default before setProps
         coolingChar
             .setProps({
             minValue: coolingMin,
-            maxValue: this.device.capabilities.maxTempCoolDry,
+            maxValue: coolingMax,
             minStep: this.device.capabilities.hasHalfDegreeIncrements ? 0.5 : 1,
         })
+            .onGet(() => this.getCoolingThreshold(coolingMin, coolingMax))
             .onSet(this.setCoolingThresholdTemperature.bind(this));
         // Set up heating threshold with safe default value first to avoid validation warnings
         const heatingChar = this.service.getCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature);
         const heatingMin = Math.max(this.device.capabilities.minTempHeat, HOMEKIT_MIN_HEATING);
+        const heatingMax = this.device.capabilities.maxTempHeat;
         heatingChar.updateValue(heatingMin); // Set safe default before setProps
         heatingChar
             .setProps({
             minValue: heatingMin,
-            maxValue: this.device.capabilities.maxTempHeat,
+            maxValue: heatingMax,
             minStep: this.device.capabilities.hasHalfDegreeIncrements ? 0.5 : 1,
         })
+            .onGet(() => this.getHeatingThreshold(heatingMin, heatingMax))
             .onSet(this.setHeatingThresholdTemperature.bind(this));
         // Optional: Rotation Speed for fan speed
         // We use 1-6 range (Auto=1, One=2, ..., Five=6) to avoid HomeKit treating 0 as "off"
@@ -66,6 +80,7 @@ class MELCloudAccessory {
                 maxValue: this.device.capabilities.numberOfFanSpeeds + 1, // +1 because we shifted range
                 minStep: 1,
             })
+                .onGet(() => this.getRotationSpeed())
                 .onSet(this.setRotationSpeed.bind(this));
         }
         // Add separate TemperatureSensor service for HomeKit automations (if enabled in config)
@@ -77,7 +92,9 @@ class MELCloudAccessory {
                 this.accessory.getService(this.platform.Service.TemperatureSensor) ||
                     this.accessory.addService(this.platform.Service.TemperatureSensor);
             this.temperatureSensor.setCharacteristic(this.platform.Characteristic.Name, `${this.device.givenDisplayName} Temperature`);
-            // No onGet — state is pushed via updateValue() during polling
+            this.temperatureSensor
+                .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+                .onGet(() => this.getCurrentTemp());
         }
         else {
             // Remove temperature sensor if it exists but is now disabled
@@ -201,6 +218,93 @@ class MELCloudAccessory {
             this.device.settings = previousSettings;
             this.platform.log.error(`[${this.device.givenDisplayName}] Failed to set power:`, error instanceof Error ? error.message : String(error));
             throw new this.platform.api.hap.HapStatusError(-70402 /* this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
+        }
+    }
+    // onGet handlers — all return synchronously from cached device state and never throw.
+    // They exist so HomeKit's liveness probes always get an immediate answer, which prevents
+    // the "Not Responding" icon from latching. Cache is kept fresh by the polling loop via
+    // updateFromDevice() / updateCharacteristics().
+    getActive() {
+        try {
+            return this.getSettings().Power === 'True'
+                ? this.platform.Characteristic.Active.ACTIVE
+                : this.platform.Characteristic.Active.INACTIVE;
+        }
+        catch {
+            return this.platform.Characteristic.Active.INACTIVE;
+        }
+    }
+    getCurrentState() {
+        try {
+            return this.computeCurrentState(this.getSettings());
+        }
+        catch {
+            return this.platform.Characteristic.CurrentHeaterCoolerState.INACTIVE;
+        }
+    }
+    getTargetState() {
+        try {
+            return this.computeTargetState(this.getSettings());
+        }
+        catch {
+            return this.platform.Characteristic.TargetHeaterCoolerState.AUTO;
+        }
+    }
+    getCurrentTemp() {
+        try {
+            const t = parseFloat(this.getSettings().RoomTemperature);
+            return Number.isNaN(t) ? 20 : t;
+        }
+        catch {
+            return 20;
+        }
+    }
+    getCoolingThreshold(min, max) {
+        try {
+            let t = this.coolingThreshold;
+            if (t === undefined) {
+                const setTemp = parseFloat(this.getSettings().SetTemperature);
+                t = Number.isNaN(setTemp) ? min : setTemp;
+            }
+            return Math.max(min, Math.min(max, t));
+        }
+        catch {
+            return min;
+        }
+    }
+    getHeatingThreshold(min, max) {
+        try {
+            let t = this.heatingThreshold;
+            if (t === undefined) {
+                const setTemp = parseFloat(this.getSettings().SetTemperature);
+                t = Number.isNaN(setTemp) ? min : setTemp;
+            }
+            return Math.max(min, Math.min(max, t));
+        }
+        catch {
+            return min;
+        }
+    }
+    getRotationSpeed() {
+        try {
+            const reverseSpeedMap = {
+                Auto: 1,
+                One: 2,
+                Two: 3,
+                Three: 4,
+                Four: 5,
+                Five: 6,
+                '0': 1,
+                '1': 2,
+                '2': 3,
+                '3': 4,
+                '4': 5,
+                '5': 6,
+            };
+            return reverseSpeedMap[this.getSettings().SetFanSpeed] ?? 1;
+        }
+        catch {
+            return 1;
         }
     }
     /**

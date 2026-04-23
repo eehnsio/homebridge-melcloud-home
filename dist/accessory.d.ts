@@ -15,6 +15,13 @@ export declare class MELCloudAccessory {
     constructor(platform: MELCloudHomePlatform, accessory: PlatformAccessory);
     private getSettings;
     setActive(value: CharacteristicValue): Promise<void>;
+    private getActive;
+    private getCurrentState;
+    private getTargetState;
+    private getCurrentTemp;
+    private getCoolingThreshold;
+    private getHeatingThreshold;
+    private getRotationSpeed;
     /**
      * Compute current heater/cooler state from device settings
      */

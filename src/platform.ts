@@ -323,9 +323,6 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
       } else {
         this.log.error('Failed to discover devices:', message);
       }
-
-      // Set StatusFault on cached accessories so HomeKit shows the error
-      this.setAllAccessoriesFault(true);
     }
   }
 
@@ -350,7 +347,6 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
           await this.refreshAllDevices();
           if (this.consecutiveAuthFailures > 0) {
             this.log.info('Connection restored.');
-            // No need to clear fault explicitly — refreshAllDevices already pushed fresh state
           }
           this.consecutiveAuthFailures = 0;
         } catch (error) {
@@ -366,7 +362,6 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
               this.log.error('Repeated authentication failures. Your refresh token is likely expired or invalid.');
               this.log.error('Please re-authenticate via Homebridge UI → Plugins → MELCloud Home → Settings → LOGIN VIA BROWSER');
               this.log.error('Pausing device refresh until Homebridge is restarted.');
-              this.setAllAccessoriesFault(true);
               return; // Stop scheduling further refreshes
             }
           } else {
@@ -506,17 +501,4 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
     this.updateVaneButtonsForDevice(device);
   }
 
-  /**
-   * Signal communication error on all cached accessories via HAP
-   * Works both before and after accessory instances are created
-   */
-  private setAllAccessoriesFault(fault: boolean) {
-    const hapError = new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-    for (const accessory of this.accessories) {
-      const heaterCooler = accessory.getService(this.Service.HeaterCooler);
-      if (heaterCooler) {
-        heaterCooler.getCharacteristic(this.Characteristic.Active).updateValue(fault ? hapError : 0);
-      }
-    }
-  }
 }
