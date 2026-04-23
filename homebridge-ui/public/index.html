@@ -163,6 +163,27 @@
     </div>
 
     <script>
+        // Workaround for homebridge-config-ui-x 5.21.0+ where savePluginConfig()
+        // writes config.json successfully but the returned Promise never resolves.
+        // Race it against a timeout; on timeout, treat as success (disk write has
+        // already happened by then in observed cases). Any real error surfaces via
+        // normal rejection before the timeout.
+        async function savePluginConfigSafe() {
+            const timeoutMs = 5000;
+            let timer;
+            const timeout = new Promise((resolve) => {
+                timer = setTimeout(() => {
+                    console.warn('[UI] savePluginConfig() did not resolve within ' + timeoutMs + 'ms; continuing optimistically');
+                    resolve();
+                }, timeoutMs);
+            });
+            try {
+                await Promise.race([window.homebridge.savePluginConfig(), timeout]);
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
         // Initialize
         window.addEventListener('load', async () => {
             console.log('[MELCloudHome UI] Ready');
@@ -258,7 +279,7 @@
 
                     // Update and save using Homebridge client-side API
                     await window.homebridge.updatePluginConfig([platformConfig]);
-                    await window.homebridge.savePluginConfig();
+                    await savePluginConfigSafe();
 
                     resultDiv.innerHTML = `
                         <div class="alert alert-success">
@@ -318,7 +339,7 @@
                 delete config.vaneButtons;
 
                 await window.homebridge.updatePluginConfig([config]);
-                await window.homebridge.savePluginConfig();
+                await savePluginConfigSafe();
                 console.log('[UI] Settings saved:', config);
             } catch (error) {
                 console.error('[UI] Failed to save settings:', error);
