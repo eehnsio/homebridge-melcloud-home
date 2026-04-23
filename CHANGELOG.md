@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.5.0...homebridge-melcloud-home-v1.5.1) (2026-04-23)
+
+
+### Bug Fixes
+
+* force HomeKit heartbeat via sendEventNotification ([17cc34c](https://github.com/eehnsio/homebridge-melcloud-home/commit/17cc34c73341641cdc4a84e5faf131dd0c2ff172))
+* prevent UI hang on save with homebridge-config-ui-x 5.21+ ([be38e3a](https://github.com/eehnsio/homebridge-melcloud-home/commit/be38e3a517a47d38675c176ec4221bc7482823a5))
+* restore HomeKit responsiveness with sync onGet handlers ([5e53d76](https://github.com/eehnsio/homebridge-melcloud-home/commit/5e53d762feeac860f0ddf1151f6145ddee270af8))
+
 ## [1.5.0](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.4.5...homebridge-melcloud-home-v1.5.0) (2026-04-12)
 
 
