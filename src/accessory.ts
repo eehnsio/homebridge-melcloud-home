@@ -283,26 +283,35 @@ export class MELCloudAccessory {
 
   private getActive(): CharacteristicValue {
     try {
-      return this.getSettings().Power === 'True'
+      const v = this.getSettings().Power === 'True'
         ? this.platform.Characteristic.Active.ACTIVE
         : this.platform.Characteristic.Active.INACTIVE;
-    } catch {
+      this.platform.debugLog(`[${this.device.givenDisplayName}] onGet Active -> ${v}`);
+      return v;
+    } catch (e) {
+      this.platform.log.warn(`[${this.device?.givenDisplayName || '?'}] onGet Active threw, defaulting INACTIVE: ${e}`);
       return this.platform.Characteristic.Active.INACTIVE;
     }
   }
 
   private getCurrentState(): CharacteristicValue {
     try {
-      return this.computeCurrentState(this.getSettings());
-    } catch {
+      const v = this.computeCurrentState(this.getSettings());
+      this.platform.debugLog(`[${this.device.givenDisplayName}] onGet CurrentState -> ${v}`);
+      return v;
+    } catch (e) {
+      this.platform.log.warn(`[${this.device?.givenDisplayName || '?'}] onGet CurrentState threw: ${e}`);
       return this.platform.Characteristic.CurrentHeaterCoolerState.INACTIVE;
     }
   }
 
   private getTargetState(): CharacteristicValue {
     try {
-      return this.computeTargetState(this.getSettings());
-    } catch {
+      const v = this.computeTargetState(this.getSettings());
+      this.platform.debugLog(`[${this.device.givenDisplayName}] onGet TargetState -> ${v}`);
+      return v;
+    } catch (e) {
+      this.platform.log.warn(`[${this.device?.givenDisplayName || '?'}] onGet TargetState threw: ${e}`);
       return this.platform.Characteristic.TargetHeaterCoolerState.AUTO;
     }
   }
@@ -310,8 +319,11 @@ export class MELCloudAccessory {
   private getCurrentTemp(): CharacteristicValue {
     try {
       const t = parseFloat(this.getSettings().RoomTemperature);
-      return Number.isNaN(t) ? 20 : t;
-    } catch {
+      const v = Number.isNaN(t) ? 20 : t;
+      this.platform.debugLog(`[${this.device.givenDisplayName}] onGet CurrentTemp -> ${v}`);
+      return v;
+    } catch (e) {
+      this.platform.log.warn(`[${this.device?.givenDisplayName || '?'}] onGet CurrentTemp threw: ${e}`);
       return 20;
     }
   }
@@ -704,19 +716,23 @@ export class MELCloudAccessory {
       `[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`,
     );
 
-    // Push all key characteristics every cycle. CurrentTemperature uses sendEventNotification()
-    // to force a HAP event even when the value is unchanged — updateValue() dedupes unchanged
-    // values and skips the notification, which caused HomeKit to mark accessories as "Not
-    // Responding" after periods of stable temperature.
+    // Push every cycle via sendEventNotification() — it bypasses updateValue()'s dedupe so
+    // HomeKit receives a HAP event every refresh even when values are unchanged. Without this,
+    // an OFF accessory (Active=0, State=INACTIVE) would never emit an event after initial
+    // startup, and iOS latches "Not Responding" on silent bridges.
 
     const activeValue = settings.Power === 'True' ? 1 : 0;
-    this.service.getCharacteristic(this.platform.Characteristic.Active).updateValue(activeValue);
+    this.service.getCharacteristic(this.platform.Characteristic.Active).sendEventNotification(activeValue);
 
     const currentState = this.computeCurrentState(settings);
-    this.service.getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState).updateValue(currentState);
+    this.service
+      .getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState)
+      .sendEventNotification(currentState);
 
     const targetState = this.computeTargetState(settings);
-    this.service.getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState).updateValue(targetState);
+    this.service
+      .getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState)
+      .sendEventNotification(targetState);
 
     // Current temperature — forced heartbeat via sendEventNotification()
     const currentTemp = parseFloat(settings.RoomTemperature);
@@ -757,13 +773,17 @@ export class MELCloudAccessory {
       Math.max(this.device.capabilities.minTempCoolDry, HOMEKIT_MIN_COOLING),
       Math.min(this.device.capabilities.maxTempCoolDry, this.coolingThreshold),
     );
-    this.service.getCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature).updateValue(coolingTemp);
+    this.service
+      .getCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature)
+      .sendEventNotification(coolingTemp);
 
     const heatingTemp = Math.max(
       Math.max(this.device.capabilities.minTempHeat, HOMEKIT_MIN_HEATING),
       Math.min(this.device.capabilities.maxTempHeat, this.heatingThreshold),
     );
-    this.service.getCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature).updateValue(heatingTemp);
+    this.service
+      .getCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature)
+      .sendEventNotification(heatingTemp);
 
     // Fan speed
     if (this.device.capabilities.numberOfFanSpeeds > 0) {
@@ -782,7 +802,7 @@ export class MELCloudAccessory {
         '5': 6,
       };
       const speed = reverseSpeedMap[settings.SetFanSpeed] ?? 1;
-      this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed).updateValue(speed);
+      this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed).sendEventNotification(speed);
     }
   }
 
