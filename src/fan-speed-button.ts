@@ -138,24 +138,15 @@ export class FanSpeedButton {
   }
 
   private async setFanSpeed(fanSpeed: string, forcePowerOn: boolean) {
-    const settings = this.getSettings();
-
-    this.platform.debugLog(
-      `[${this.device.givenDisplayName} Fan] Setting fan=${fanSpeed}, preserving vane=${settings.VaneVerticalDirection}`,
-    );
-
-    const power = forcePowerOn ? true : settings.Power === 'True';
+    this.platform.debugLog(`[${this.device.givenDisplayName} Fan] Setting fan=${fanSpeed}`);
 
     try {
+      // Send only the changed fields — see swing-button fix for rationale.
+      // Power is included only when forcing the AC on (when toggling a fan-speed button on
+      // while the AC is off); otherwise leave power state alone.
       await this.platform.getAPI().controlDevice(this.device.id, {
-        power, // Power on when turning button ON, preserve state when turning OFF
-        operationMode: settings.OperationMode,
+        ...(forcePowerOn ? { power: true } : {}),
         setFanSpeed: fanSpeed,
-        vaneHorizontalDirection: settings.VaneHorizontalDirection,
-        vaneVerticalDirection: settings.VaneVerticalDirection,
-        setTemperature: parseFloat(settings.SetTemperature),
-        temperatureIncrementOverride: null,
-        inStandbyMode: null,
       });
 
       // Update cached state
@@ -163,8 +154,8 @@ export class FanSpeedButton {
         if (setting.name === 'SetFanSpeed') {
           return { ...setting, value: fanSpeed };
         }
-        if (setting.name === 'Power') {
-          return { ...setting, value: power ? 'True' : 'False' };
+        if (setting.name === 'Power' && forcePowerOn) {
+          return { ...setting, value: 'True' };
         }
         return setting;
       });

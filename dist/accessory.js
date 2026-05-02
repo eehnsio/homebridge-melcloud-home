@@ -162,34 +162,19 @@ class MELCloudAccessory {
         // Save previous state for rollback on failure
         const previousSettings = [...this.device.settings];
         try {
-            // Convert numeric fan speed back to text format for API
-            // API returns numbers but expects text input
-            const speedToTextMap = {
-                '0': 'Auto',
-                '1': 'One',
-                '2': 'Two',
-                '3': 'Three',
-                '4': 'Four',
-                '5': 'Five',
-            };
-            const fanSpeedForAPI = speedToTextMap[settings.SetFanSpeed] || settings.SetFanSpeed;
             // If powering on and there's a pending mode change, apply it now
             const operationMode = power && this.pendingMode ? this.pendingMode : settings.OperationMode;
             if (power && this.pendingMode) {
                 this.platform.debugLog(`[${this.device.givenDisplayName}] Applying pending mode change: ${this.pendingMode}`);
                 this.pendingMode = undefined; // Clear after use
             }
-            // Send current state for all parameters except power (only change power)
-            // This prevents the API from changing other settings when toggling power
+            // Send only the fields we want to change. MELCloud preserves any field set to null
+            // (or omitted), and re-sending the full state can disturb AC firmware substates such
+            // as the vane oscillation engine — same root cause as the swing-button fix.
             await this.platform.getAPI().controlDevice(this.device.id, {
                 power,
-                operationMode,
-                setFanSpeed: fanSpeedForAPI,
-                vaneHorizontalDirection: settings.VaneHorizontalDirection,
-                vaneVerticalDirection: settings.VaneVerticalDirection,
-                setTemperature: parseFloat(settings.SetTemperature),
-                temperatureIncrementOverride: null,
-                inStandbyMode: null,
+                // Apply pending mode change only if there is one pending (otherwise leave mode alone)
+                ...(power && operationMode !== settings.OperationMode ? { operationMode } : {}),
             });
             // Optimistically update the cached state immediately for responsive HomeKit UI
             // This prevents HomeKit from reverting the UI while waiting for API confirmation
@@ -556,16 +541,9 @@ class MELCloudAccessory {
             return;
         }
         try {
-            // Send current state for all parameters except fan speed (only change fan speed)
+            // Send only the changed field — see swing-button fix for rationale
             await this.platform.getAPI().controlDevice(this.device.id, {
-                power: settings.Power === 'True',
-                operationMode: settings.OperationMode,
                 setFanSpeed: fanSpeedText,
-                vaneHorizontalDirection: settings.VaneHorizontalDirection,
-                vaneVerticalDirection: settings.VaneVerticalDirection,
-                setTemperature: parseFloat(settings.SetTemperature),
-                temperatureIncrementOverride: null,
-                inStandbyMode: null,
             });
             // Optimistically update cached state immediately
             this.platform.debugLog(`[${this.device.givenDisplayName}] Fan speed command sent successfully, updating cache`);

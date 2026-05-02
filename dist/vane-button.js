@@ -77,19 +77,18 @@ class VaneButton {
         await this.setVanePosition(this.getApiValue(), true);
     }
     async setVanePosition(vaneDirection, forcePowerOn) {
-        const settings = this.getSettings();
-        const power = forcePowerOn ? true : settings.Power === 'True';
         this.platform.debugLog(`[${this.device.givenDisplayName} Vane] Sending API command: vaneVerticalDirection=${vaneDirection}`);
         try {
+            // MELCloud expects ONLY the fields being changed, with the rest left out (or null).
+            // Sending the full state every time appears to reset the AC's vane-motor state
+            // without re-engaging physical oscillation, which is why pressing Swing in HomeKit
+            // sets VaneVerticalDirection=Swing on the server but the AC doesn't physically
+            // move — while the IR remote (which sends only the vane field) does work.
             await this.platform.getAPI().controlDevice(this.device.id, {
-                power,
-                operationMode: settings.OperationMode,
-                setFanSpeed: settings.SetFanSpeed,
-                vaneHorizontalDirection: settings.VaneHorizontalDirection,
+                // Only force power=true if we're turning a button ON (matches the previous behaviour
+                // of waking the AC if it was off). Otherwise leave power untouched.
+                ...(forcePowerOn ? { power: true } : {}),
                 vaneVerticalDirection: vaneDirection,
-                setTemperature: parseFloat(settings.SetTemperature),
-                temperatureIncrementOverride: null,
-                inStandbyMode: null,
             });
             // Update cached state
             const updatedSettings = this.device.settings.map((setting) => {
