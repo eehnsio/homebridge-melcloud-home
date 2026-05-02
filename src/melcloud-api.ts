@@ -3,7 +3,7 @@ import https from 'node:https';
 export interface MELCloudConfig {
   refreshToken: string;
   debug?: boolean;
-  onTokenRefresh?: (newRefreshToken: string) => void;
+  onTokenRefresh?: (newRefreshToken: string) => Promise<void> | void;
   debugLog?: (message: string) => void;
   warnLog?: (message: string) => void;
 }
@@ -156,7 +156,7 @@ export class MELCloudAPI {
           body += chunk;
         });
 
-        res.on('end', () => {
+        res.on('end', async () => {
           if (res.statusCode !== 200) {
             this.config.warnLog?.(`[MELCloud] Token refresh failed (HTTP ${res.statusCode}): ${body}`);
             reject(new Error(`Token refresh failed: HTTP ${res.statusCode}`));
@@ -180,10 +180,24 @@ export class MELCloudAPI {
             this.config.debugLog?.('[MELCloud] Access token refreshed successfully');
             this.config.debugLog?.(`[MELCloud] Token expires in: ${tokenResponse.expires_in} seconds`);
 
-            // Notify platform if refresh token changed (for persistence)
+            // Persist the rotated refresh token to disk before resolving. MELCloud already
+            // invalidated the previous token server-side as soon as it issued this one, so if
+            // the process dies before the new token reaches disk, the old disk-stored token is
+            // already useless and the user has to re-authenticate. Awaiting the persist
+            // shrinks that loss window from "until next refresh cycle" to just the duration of
+            // the atomic file write.
             if (this.config.onTokenRefresh && tokenResponse.refresh_token !== this.config.refreshToken) {
               this.config.debugLog?.('[MELCloud] Refresh token rotated, saving to config...');
-              this.config.onTokenRefresh(tokenResponse.refresh_token);
+              try {
+                await this.config.onTokenRefresh(tokenResponse.refresh_token);
+              } catch (persistError) {
+                this.config.warnLog?.(
+                  `[MELCloud] Failed to persist rotated refresh token: ${persistError instanceof Error ? persistError.message : String(persistError)}`,
+                );
+                // Don't reject — token is in memory and the next refresh cycle will retry the
+                // persist with whatever the next rotation produces. Rejecting would force an
+                // immediate retry that would fail with invalid_grant.
+              }
             }
 
             resolve();
