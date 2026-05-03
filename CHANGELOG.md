@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.5.1...homebridge-melcloud-home-v1.6.0) (2026-05-03)
+
+
+### Features
+
+* group fan/vane switches as child services on the AC accessory ([807786a](https://github.com/eehnsio/homebridge-melcloud-home/commit/807786a647b32c26d3db02f5839bc08d40c7b5ef))
+
+
+### Bug Fixes
+
+* await refresh-token persist to close rotation race window ([62d511f](https://github.com/eehnsio/homebridge-melcloud-home/commit/62d511f159e2f6ca34fbe5b2c8a6b8bd90598d45))
+* send heartbeat on all writable characteristics, not just temp ([89686c4](https://github.com/eehnsio/homebridge-melcloud-home/commit/89686c4f0d490b8cc641c9734afeaef18a9114df))
+* send only changed fields in all setters to avoid AC firmware quirks ([754b26b](https://github.com/eehnsio/homebridge-melcloud-home/commit/754b26b75714ed9838eb761c6076b283b00e7d53))
+
 ## [1.5.1](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.5.0...homebridge-melcloud-home-v1.5.1) (2026-04-23)
 
 
