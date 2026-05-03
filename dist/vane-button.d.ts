@@ -1,4 +1,4 @@
-import type { CharacteristicValue, PlatformAccessory } from 'homebridge';
+import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 import { type AirToAirUnit } from './melcloud-api';
 import type { MELCloudHomePlatform } from './platform';
 /**
@@ -16,7 +16,7 @@ export declare class VaneButton {
     private device;
     static readonly POSITION_NAMES: Record<string, string>;
     static readonly POSITION_API_VALUES: Record<string, string>;
-    constructor(platform: MELCloudHomePlatform, accessory: PlatformAccessory, positionKey: string);
+    constructor(platform: MELCloudHomePlatform, accessory: PlatformAccessory, service: Service, positionKey: string);
     private getApiValue;
     private getSettings;
     private isCurrentPosition;

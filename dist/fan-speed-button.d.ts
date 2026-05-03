@@ -1,4 +1,4 @@
-import type { CharacteristicValue, PlatformAccessory } from 'homebridge';
+import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 import { type AirToAirUnit } from './melcloud-api';
 import type { MELCloudHomePlatform } from './platform';
 /**
@@ -21,7 +21,7 @@ export declare class FanSpeedButton {
     private device;
     static readonly SPEED_NAMES: Record<string, string>;
     static readonly SPEED_API_VALUES: Record<string, string>;
-    constructor(platform: MELCloudHomePlatform, accessory: PlatformAccessory, speedKey: string);
+    constructor(platform: MELCloudHomePlatform, accessory: PlatformAccessory, service: Service, speedKey: string);
     private getSpeedDisplayName;
     private getApiValue;
     private getSettings;

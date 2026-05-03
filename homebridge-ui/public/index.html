@@ -142,11 +142,11 @@
                             Vane Control
                         </label>
                         <select class="form-select" id="vane-control">
-                            <option value="none">None</option>
-                            <option value="buttons">Buttons (Auto, Swing)</option>
+                            <option value="none">None — no swing controls in HomeKit</option>
+                            <option value="buttons">Swing switch — ON = swing, OFF = auto</option>
                         </select>
                         <small class="text-muted">
-                            Control vane/swing position. Buttons are OFF when AC is OFF.
+                            iOS HomeKit's AC tile has no native swing control. 'Swing switch' adds a single switch to the AC accessory: ON sets vane to Swing, OFF returns to Auto. Manual positions 1-5: use the IR remote.
                         </small>
                     </div>
 

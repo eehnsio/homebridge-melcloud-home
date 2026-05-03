@@ -134,115 +134,99 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
       // Register each device
       for (const device of devices) {
-        // Main AC accessory
+        // Main AC accessory — vane and fan-speed switches are now child Switch services on
+        // this same accessory (with subtypes), not separate accessories. This means iOS Home
+        // automatically groups them with the AC by room, and accessory settings live in one
+        // place instead of N separate "Settings" pages.
         const uuid = this.api.hap.uuid.generate(device.id);
-        const existingAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
+        let mainAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
 
-        if (existingAccessory) {
-          // Update existing accessory
+        if (mainAccessory) {
           this.debugLog('Restoring existing accessory from cache: ' + device.givenDisplayName);
-          existingAccessory.context.device = device;
-          this.api.updatePlatformAccessories([existingAccessory]);
-          const accessoryInstance = new MELCloudAccessory(this, existingAccessory);
+          mainAccessory.context.device = device;
+          this.api.updatePlatformAccessories([mainAccessory]);
+          const accessoryInstance = new MELCloudAccessory(this, mainAccessory);
           this.accessoryInstances.set(uuid, accessoryInstance);
         } else {
-          // Create new accessory
           this.debugLog('Adding new accessory: ' + device.givenDisplayName);
-          const accessory = new this.api.platformAccessory(device.givenDisplayName, uuid);
-          accessory.context.device = device;
-          this.accessories.push(accessory); // Add to our array for refresh to find it!
-          const accessoryInstance = new MELCloudAccessory(this, accessory);
+          mainAccessory = new this.api.platformAccessory(device.givenDisplayName, uuid);
+          mainAccessory.context.device = device;
+          this.accessories.push(mainAccessory);
+          const accessoryInstance = new MELCloudAccessory(this, mainAccessory);
           this.accessoryInstances.set(uuid, accessoryInstance);
-          this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+          this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [mainAccessory]);
         }
 
-        // Fan Speed Buttons (if enabled)
+        // Fan Speed Buttons (if enabled) — Switch services on the main accessory
         const fanSpeedButtons = this.config.fanSpeedButtons || 'none';
+        let activeFanSpeedKeys: string[] = [];
         if (fanSpeedButtons !== 'none' && device.capabilities.numberOfFanSpeeds > 0) {
-          // Determine which speeds to create buttons for
-          let speeds: string[];
-          if (fanSpeedButtons === 'simple') {
-            speeds = ['auto', 'quiet', 'max']; // Auto, Speed 1, Speed 5
-          } else if (fanSpeedButtons === 'all') {
-            speeds = ['auto', 'quiet', '2', '3', '4', 'max']; // All speeds
-          } else {
-            speeds = [];
-          }
+          if (fanSpeedButtons === 'simple') activeFanSpeedKeys = ['auto', 'quiet', 'max'];
+          else if (fanSpeedButtons === 'all') activeFanSpeedKeys = ['auto', 'quiet', '2', '3', '4', 'max'];
 
-          for (const speedKey of speeds) {
-            const buttonUuid = this.api.hap.uuid.generate(`${device.id}-fan-${speedKey}`);
-            const existingButton = this.accessories.find((accessory) => accessory.UUID === buttonUuid);
-
+          for (const speedKey of activeFanSpeedKeys) {
+            const subtype = `fan-${speedKey}`;
             const speedName = FanSpeedButton.SPEED_NAMES[FanSpeedButton.SPEED_API_VALUES[speedKey]] || speedKey;
+            const displayName = `${device.givenDisplayName} Fan ${speedName}`;
 
-            if (existingButton) {
-              this.debugLog(`Restoring Fan ${speedName} button from cache: ${device.givenDisplayName}`);
-              existingButton.context.device = device;
-              existingButton.context.speedKey = speedKey;
-              this.api.updatePlatformAccessories([existingButton]);
-              const buttonInstance = new FanSpeedButton(this, existingButton, speedKey);
-              this.fanButtonInstances.set(buttonUuid, buttonInstance);
-            } else {
-              this.debugLog(`Adding Fan ${speedName} button: ${device.givenDisplayName}`);
-              const buttonAccessory = new this.api.platformAccessory(
-                `${device.givenDisplayName} Fan ${speedName}`,
-                buttonUuid,
-              );
-              buttonAccessory.context.device = device;
-              buttonAccessory.context.speedKey = speedKey;
-              buttonAccessory.context.isFanButton = true;
-              this.accessories.push(buttonAccessory);
-              const buttonInstance = new FanSpeedButton(this, buttonAccessory, speedKey);
-              this.fanButtonInstances.set(buttonUuid, buttonInstance);
-              this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [buttonAccessory]);
+            let switchService = mainAccessory.getServiceById(this.Service.Switch, subtype);
+            if (!switchService) {
+              this.debugLog(`Adding Fan ${speedName} switch service: ${device.givenDisplayName}`);
+              switchService = mainAccessory.addService(this.Service.Switch, displayName, subtype);
             }
+            const buttonInstance = new FanSpeedButton(this, mainAccessory, switchService, speedKey);
+            this.fanButtonInstances.set(`${uuid}-${subtype}`, buttonInstance);
           }
         }
 
-        // Vane Buttons (if vaneControl === 'buttons')
-        // Also support legacy config: vaneButtons === 'simple'
+        // Vane Buttons (if vaneControl === 'buttons') — Switch services on the main accessory
+        // Legacy config: vaneButtons === 'simple' is treated as 'buttons'.
         const vaneControl = this.config.vaneControl || this.config.vaneButtons || 'none';
         const enableVaneButtons = vaneControl === 'buttons' || vaneControl === 'simple';
+        let activeVanePositions: string[] = [];
+
         if (enableVaneButtons) {
-          const positions = ['auto', 'swing']; // Auto and Swing buttons
-
-          for (const positionKey of positions) {
-            const buttonUuid = this.api.hap.uuid.generate(`${device.id}-vane-${positionKey}`);
-            const existingButton = this.accessories.find((accessory) => accessory.UUID === buttonUuid);
-
+          // Single Swing switch per AC: ON = Swing (oscillating), OFF = Auto (AC picks fixed
+          // position). The setter in vane-button.ts handles the OFF→Auto transition. Auto is
+          // never exposed as its own button — it would just be a "not Swing" duplicate.
+          activeVanePositions = ['swing'];
+          for (const positionKey of activeVanePositions) {
+            const subtype = `vane-${positionKey}`;
             const positionName = VaneButton.POSITION_NAMES[positionKey] || positionKey;
+            const displayName = `${device.givenDisplayName} Vane ${positionName}`;
 
-            if (existingButton) {
-              this.debugLog(`Restoring Vane ${positionName} button from cache: ${device.givenDisplayName}`);
-              existingButton.context.device = device;
-              existingButton.context.positionKey = positionKey;
-              this.api.updatePlatformAccessories([existingButton]);
-              const buttonInstance = new VaneButton(this, existingButton, positionKey);
-              this.vaneButtonInstances.set(buttonUuid, buttonInstance);
-            } else {
-              this.debugLog(`Adding Vane ${positionName} button: ${device.givenDisplayName}`);
-              const buttonAccessory = new this.api.platformAccessory(
-                `${device.givenDisplayName} Vane ${positionName}`,
-                buttonUuid,
-              );
-              buttonAccessory.context.device = device;
-              buttonAccessory.context.positionKey = positionKey;
-              buttonAccessory.context.isVaneButton = true;
-              this.accessories.push(buttonAccessory);
-              const buttonInstance = new VaneButton(this, buttonAccessory, positionKey);
-              this.vaneButtonInstances.set(buttonUuid, buttonInstance);
-              this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [buttonAccessory]);
+            let switchService = mainAccessory.getServiceById(this.Service.Switch, subtype);
+            if (!switchService) {
+              this.debugLog(`Adding Vane ${positionName} switch service: ${device.givenDisplayName}`);
+              switchService = mainAccessory.addService(this.Service.Switch, displayName, subtype);
             }
+            const buttonInstance = new VaneButton(this, mainAccessory, switchService, positionKey);
+            this.vaneButtonInstances.set(`${uuid}-${subtype}`, buttonInstance);
+          }
+        }
+
+        // Remove Switch services that no longer match the configured set (e.g. user switched
+        // fanSpeedButtons from 'all' to 'simple', or disabled vane buttons entirely).
+        const allowedSubtypes = new Set([
+          ...activeFanSpeedKeys.map((k) => `fan-${k}`),
+          ...activeVanePositions.map((p) => `vane-${p}`),
+        ]);
+        for (const svc of [...mainAccessory.services]) {
+          const subtype = svc.subtype;
+          if (
+            subtype &&
+            (subtype.startsWith('fan-') || subtype.startsWith('vane-')) &&
+            !allowedSubtypes.has(subtype)
+          ) {
+            this.debugLog(`Removing stale switch service: ${svc.displayName} (${subtype})`);
+            mainAccessory.removeService(svc);
           }
         }
       }
 
-      // Remove accessories that no longer exist OR are disabled by config
+      // Remove accessories for devices that no longer exist, plus legacy standalone button
+      // accessories from before the 1.6.0 refactor (now child services on the main accessory).
       const devicesIds = devices.map((d) => d.id);
-      const fanSpeedButtonsConfig = this.config.fanSpeedButtons || 'none';
-      // Support new vaneControl and legacy vaneButtons
-      const vaneControlConfig = this.config.vaneControl || this.config.vaneButtons || 'none';
-      const vaneButtonsEnabled = vaneControlConfig === 'buttons' || vaneControlConfig === 'simple';
 
       const accessoriesToRemove = this.accessories.filter((accessory) => {
         const deviceId = accessory.context.device?.id;
@@ -252,41 +236,17 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
           return true;
         }
 
-        // Remove old swing accessories (deprecated - replaced by vane buttons)
-        if (accessory.context.isSwingAccessory) {
-          this.debugLog('Removing deprecated swing accessory: ' + accessory.displayName);
-          return true;
-        }
-
-        // Remove old fan slider accessory (deprecated)
-        if (accessory.context.isFanAccessory) {
-          this.debugLog('Removing deprecated fan slider accessory: ' + accessory.displayName);
-          return true;
-        }
-
-        // Remove fan buttons if fanSpeedButtons is 'none'
-        if (accessory.context.isFanButton && fanSpeedButtonsConfig === 'none') {
-          this.debugLog('Removing fan button (fanSpeedButtons=none): ' + accessory.displayName);
-          return true;
-        }
-
-        // Remove fan buttons that don't match current config (e.g., 'all' buttons when config is 'simple')
-        if (accessory.context.isFanButton && accessory.context.speedKey) {
-          const configSpeeds =
-            fanSpeedButtonsConfig === 'simple'
-              ? ['auto', 'quiet', 'max']
-              : fanSpeedButtonsConfig === 'all'
-                ? ['auto', 'quiet', '2', '3', '4', 'max']
-                : [];
-          if (!configSpeeds.includes(accessory.context.speedKey)) {
-            this.debugLog(`Removing fan button (not in ${fanSpeedButtonsConfig}): ${accessory.displayName}`);
-            return true;
-          }
-        }
-
-        // Remove vane buttons if vaneControl is disabled
-        if (accessory.context.isVaneButton && !vaneButtonsEnabled) {
-          this.debugLog('Removing vane button (vaneControl disabled): ' + accessory.displayName);
+        // Remove deprecated standalone accessories. As of 1.6.0, vane and fan-speed buttons
+        // are child Switch services on the main AC accessory — anything standalone is legacy.
+        // Older builds also had isSwingAccessory / isFanAccessory variants.
+        if (
+          accessory.context.isFanButton ||
+          accessory.context.isVaneButton ||
+          accessory.context.isVaneSlider ||
+          accessory.context.isSwingAccessory ||
+          accessory.context.isFanAccessory
+        ) {
+          this.debugLog(`Removing deprecated standalone accessory: ${accessory.displayName}`);
           return true;
         }
 
@@ -421,24 +381,15 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
       accessoryInstance.updateFromDevice(device);
     }
 
-    // Update Fan Speed Buttons
-    for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
-      const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
-      if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
-        buttonAccessory.context.device = device;
-        this.api.updatePlatformAccessories([buttonAccessory]);
-        buttonInstance.updateFromDevice(device);
-      }
+    // Update Fan Speed + Vane Buttons. Map keys are `${mainUuid}-fan-<key>` and
+    // `${mainUuid}-vane-<key>` respectively, so we filter by prefix to find buttons that
+    // belong to this device.
+    const keyPrefix = `${uuid}-`;
+    for (const [key, buttonInstance] of this.fanButtonInstances) {
+      if (key.startsWith(keyPrefix)) buttonInstance.updateFromDevice(device);
     }
-
-    // Update Vane Buttons
-    for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
-      const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
-      if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
-        buttonAccessory.context.device = device;
-        this.api.updatePlatformAccessories([buttonAccessory]);
-        buttonInstance.updateFromDevice(device);
-      }
+    for (const [key, buttonInstance] of this.vaneButtonInstances) {
+      if (key.startsWith(keyPrefix)) buttonInstance.updateFromDevice(device);
     }
   }
 
@@ -464,14 +415,9 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
    * Called when a fan speed is changed to ensure mutual exclusivity
    */
   public updateFanButtonsForDevice(device: AirToAirUnit) {
-    for (const [buttonUuid, buttonInstance] of this.fanButtonInstances) {
-      const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
-      // Check if this button belongs to the same device by comparing device IDs in context
-      if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
-        buttonAccessory.context.device = device;
-        buttonInstance.updateFromDevice(device);
-        this.debugLog(`[${device.givenDisplayName}] Updated fan button: ${buttonAccessory.displayName}`);
-      }
+    const keyPrefix = `${this.api.hap.uuid.generate(device.id)}-`;
+    for (const [key, buttonInstance] of this.fanButtonInstances) {
+      if (key.startsWith(keyPrefix)) buttonInstance.updateFromDevice(device);
     }
   }
 
@@ -480,14 +426,9 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
    * Called when vane position is changed to ensure mutual exclusivity
    */
   public updateVaneButtonsForDevice(device: AirToAirUnit) {
-    for (const [buttonUuid, buttonInstance] of this.vaneButtonInstances) {
-      const buttonAccessory = this.accessories.find((acc) => acc.UUID === buttonUuid);
-      // Check if this button belongs to the same device by comparing device IDs in context
-      if (buttonAccessory && buttonAccessory.context.device?.id === device.id) {
-        buttonAccessory.context.device = device;
-        buttonInstance.updateFromDevice(device);
-        this.debugLog(`[${device.givenDisplayName}] Updated vane button: ${buttonAccessory.displayName}`);
-      }
+    const keyPrefix = `${this.api.hap.uuid.generate(device.id)}-`;
+    for (const [key, buttonInstance] of this.vaneButtonInstances) {
+      if (key.startsWith(keyPrefix)) buttonInstance.updateFromDevice(device);
     }
   }
 

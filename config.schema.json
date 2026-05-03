@@ -59,10 +59,10 @@
         "type": "string",
         "default": "none",
         "oneOf": [
-          { "title": "None", "enum": ["none"] },
-          { "title": "Buttons (Auto, Swing)", "enum": ["buttons"] }
+          { "title": "None — no swing controls in HomeKit", "enum": ["none"] },
+          { "title": "Swing switch — ON = swing, OFF = auto", "enum": ["buttons"] }
         ],
-        "description": "Control vane/swing position. 'Buttons' creates separate Auto and Swing switches. Buttons are OFF when AC is OFF, and mutually exclusive."
+        "description": "iOS HomeKit's HeaterCooler tile does NOT expose any swing control natively. 'Swing switch' adds a single switch to the AC accessory: ON sets the vane to Swing (oscillating), OFF sets it to Auto (AC firmware picks a fixed position). Manual positions 1-5 are not exposable in HomeKit — use the IR remote."
       }
     }
   }

@@ -116,7 +116,9 @@ class MELCloudAccessory {
                 this.platform.debugLog(`[${this.device.givenDisplayName}] Removed old service: ${svc.displayName || svc.UUID}`);
             }
         }
-        // Remove old SwingMode characteristic from HeaterCooler if it exists
+        // Remove SwingMode characteristic if it exists from an earlier build — iOS Home does
+        // not render SwingMode on HeaterCooler in iOS 18+, so adding it is dead code that just
+        // confuses future debugging. Use vane-control config option for visible swing buttons.
         if (this.service.testCharacteristic(this.platform.Characteristic.SwingMode)) {
             this.service.removeCharacteristic(this.service.getCharacteristic(this.platform.Characteristic.SwingMode));
         }

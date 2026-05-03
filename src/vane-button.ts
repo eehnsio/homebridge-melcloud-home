@@ -13,47 +13,43 @@ export class VaneButton {
   private service: Service;
   private device: AirToAirUnit;
 
-  // Vane position mapping
+  // Vane position mapping (display names shown in HomeKit)
   static readonly POSITION_NAMES: Record<string, string> = {
     auto: 'Auto',
+    '1': '1',
+    '2': '2',
+    '3': '3',
+    '4': '4',
+    '5': '5',
     swing: 'Swing',
   };
 
-  // API values for each position
+  // API values for each position (what MELCloud expects in vaneVerticalDirection)
   static readonly POSITION_API_VALUES: Record<string, string> = {
     auto: 'Auto',
-    swing: 'Swing', // Position 7 = Swing mode (oscillating)
+    '1': 'One',
+    '2': 'Two',
+    '3': 'Three',
+    '4': 'Four',
+    '5': 'Five',
+    swing: 'Swing',
   };
 
   constructor(
     private readonly platform: MELCloudHomePlatform,
     private readonly accessory: PlatformAccessory,
+    service: Service,
     private readonly positionKey: string, // 'auto' or 'swing'
   ) {
     this.device = accessory.context.device;
+    this.service = service;
+
+    // Service display name + On characteristic
     const positionName = VaneButton.POSITION_NAMES[this.positionKey] || this.positionKey;
-
-    // Set accessory information
-    this.accessory
-      .getService(this.platform.Service.AccessoryInformation)
-      ?.setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
-      .setCharacteristic(this.platform.Characteristic.Model, 'MELCloud Vane Button')
-      .setCharacteristic(
-        this.platform.Characteristic.SerialNumber,
-        `${this.device.connectedInterfaceIdentifier}-vane-${positionKey}`,
-      );
-
-    // Get or create the Switch service
-    this.service =
-      this.accessory.getService(this.platform.Service.Switch) ||
-      this.accessory.addService(this.platform.Service.Switch);
-
     this.service.setCharacteristic(
       this.platform.Characteristic.Name,
       `${this.device.givenDisplayName} Vane ${positionName}`,
     );
-
-    // On/Off control
     this.service
       .getCharacteristic(this.platform.Characteristic.On)
       .onGet(this.getOn.bind(this))
@@ -73,11 +69,21 @@ export class VaneButton {
     const currentVane = settings.VaneVerticalDirection;
     const targetApiValue = this.getApiValue();
 
-    // Normalize for comparison (handle both text and numeric formats)
+    // Normalize for comparison — MELCloud occasionally returns numeric strings instead
+    // of the canonical text values, especially for Auto/Swing edge cases.
     const normalizeVane = (v: string) => {
-      if (v === '0' || v === 'Auto') return 'Auto';
-      if (v === '6' || v === 'Six' || v === '7' || v === 'Swing') return 'Swing';
-      return v;
+      const numericMap: Record<string, string> = {
+        '0': 'Auto',
+        '1': 'One',
+        '2': 'Two',
+        '3': 'Three',
+        '4': 'Four',
+        '5': 'Five',
+        '6': 'Swing',
+        '7': 'Swing',
+        Six: 'Swing',
+      };
+      return numericMap[v] || v;
     };
 
     return normalizeVane(currentVane) === normalizeVane(targetApiValue);

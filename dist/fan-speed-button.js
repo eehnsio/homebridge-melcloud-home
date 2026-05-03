@@ -15,24 +15,14 @@ const melcloud_api_1 = require("./melcloud-api");
  * intentional for keeping cached state in sync without extra API calls.
  */
 class FanSpeedButton {
-    constructor(platform, accessory, speedKey) {
+    constructor(platform, accessory, service, speedKey) {
         this.platform = platform;
         this.accessory = accessory;
         this.speedKey = speedKey;
         this.device = accessory.context.device;
+        this.service = service;
         const speedName = this.getSpeedDisplayName();
-        // Set accessory information
-        this.accessory
-            .getService(this.platform.Service.AccessoryInformation)
-            ?.setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
-            .setCharacteristic(this.platform.Characteristic.Model, 'MELCloud Fan Button')
-            .setCharacteristic(this.platform.Characteristic.SerialNumber, `${this.device.connectedInterfaceIdentifier}-fan-${speedKey}`);
-        // Get or create the Switch service
-        this.service =
-            this.accessory.getService(this.platform.Service.Switch) ||
-                this.accessory.addService(this.platform.Service.Switch);
         this.service.setCharacteristic(this.platform.Characteristic.Name, `${this.device.givenDisplayName} Fan ${speedName}`);
-        // On/Off control
         this.service
             .getCharacteristic(this.platform.Characteristic.On)
             .onGet(this.getOn.bind(this))

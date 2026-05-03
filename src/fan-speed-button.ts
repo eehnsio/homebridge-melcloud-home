@@ -49,32 +49,17 @@ export class FanSpeedButton {
   constructor(
     private readonly platform: MELCloudHomePlatform,
     private readonly accessory: PlatformAccessory,
+    service: Service,
     private readonly speedKey: string, // 'auto', 'quiet', '2', '3', '4', 'max'
   ) {
     this.device = accessory.context.device;
+    this.service = service;
+
     const speedName = this.getSpeedDisplayName();
-
-    // Set accessory information
-    this.accessory
-      .getService(this.platform.Service.AccessoryInformation)
-      ?.setCharacteristic(this.platform.Characteristic.Manufacturer, 'Mitsubishi Electric')
-      .setCharacteristic(this.platform.Characteristic.Model, 'MELCloud Fan Button')
-      .setCharacteristic(
-        this.platform.Characteristic.SerialNumber,
-        `${this.device.connectedInterfaceIdentifier}-fan-${speedKey}`,
-      );
-
-    // Get or create the Switch service
-    this.service =
-      this.accessory.getService(this.platform.Service.Switch) ||
-      this.accessory.addService(this.platform.Service.Switch);
-
     this.service.setCharacteristic(
       this.platform.Characteristic.Name,
       `${this.device.givenDisplayName} Fan ${speedName}`,
     );
-
-    // On/Off control
     this.service
       .getCharacteristic(this.platform.Characteristic.On)
       .onGet(this.getOn.bind(this))
