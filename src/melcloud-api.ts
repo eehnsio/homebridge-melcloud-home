@@ -1,4 +1,5 @@
 import https from 'node:https';
+import { type AuthAuditLog, maskToken } from './auth-audit-log';
 
 export interface MELCloudConfig {
   refreshToken: string;
@@ -6,6 +7,7 @@ export interface MELCloudConfig {
   onTokenRefresh?: (newRefreshToken: string) => Promise<void> | void;
   debugLog?: (message: string) => void;
   warnLog?: (message: string) => void;
+  auditLog?: AuthAuditLog;
 }
 
 export interface DeviceSetting {
@@ -103,6 +105,10 @@ export class MELCloudAPI {
   constructor(config: MELCloudConfig) {
     this.config = config;
     this.currentRefreshToken = config.refreshToken;
+    void config.auditLog?.write({
+      event: 'init',
+      tokenSuffix: maskToken(config.refreshToken),
+    });
   }
 
   /**
@@ -126,6 +132,11 @@ export class MELCloudAPI {
     }
 
     this.config.debugLog?.('[MELCloud] Refreshing access token...');
+    const usedTokenSuffix = maskToken(this.currentRefreshToken);
+    void this.config.auditLog?.write({
+      event: 'refresh_attempt',
+      tokenSuffix: usedTokenSuffix,
+    });
 
     const formData = new URLSearchParams({
       grant_type: 'refresh_token',
@@ -159,6 +170,12 @@ export class MELCloudAPI {
         res.on('end', async () => {
           if (res.statusCode !== 200) {
             this.config.warnLog?.(`[MELCloud] Token refresh failed (HTTP ${res.statusCode}): ${body}`);
+            void this.config.auditLog?.write({
+              event: 'refresh_failure',
+              tokenSuffix: usedTokenSuffix,
+              httpStatus: res.statusCode,
+              responseBody: body.slice(0, 500),
+            });
             reject(new Error(`Token refresh failed: HTTP ${res.statusCode}`));
             return;
           }
@@ -170,15 +187,36 @@ export class MELCloudAPI {
               typeof tokenResponse.refresh_token !== 'string' ||
               typeof tokenResponse.expires_in !== 'number'
             ) {
+              void this.config.auditLog?.write({
+                event: 'refresh_failure',
+                tokenSuffix: usedTokenSuffix,
+                errorMessage: 'invalid response shape',
+                responseBody: body.slice(0, 500),
+              });
               reject(new Error('Invalid token response: missing required fields'));
               return;
             }
+            const newTokenSuffix = maskToken(tokenResponse.refresh_token);
+            const rotated = tokenResponse.refresh_token !== this.currentRefreshToken;
             this.accessToken = tokenResponse.access_token;
             this.currentRefreshToken = tokenResponse.refresh_token;
             this.tokenExpiry = Date.now() + tokenResponse.expires_in * 1000;
 
             this.config.debugLog?.('[MELCloud] Access token refreshed successfully');
             this.config.debugLog?.(`[MELCloud] Token expires in: ${tokenResponse.expires_in} seconds`);
+            void this.config.auditLog?.write({
+              event: 'refresh_success',
+              tokenSuffix: usedTokenSuffix,
+              newTokenSuffix,
+              expiresIn: tokenResponse.expires_in,
+            });
+            if (rotated) {
+              void this.config.auditLog?.write({
+                event: 'token_rotated',
+                tokenSuffix: usedTokenSuffix,
+                newTokenSuffix,
+              });
+            }
 
             // Persist the rotated refresh token to disk before resolving. MELCloud already
             // invalidated the previous token server-side as soon as it issued this one, so if
@@ -188,12 +226,24 @@ export class MELCloudAPI {
             // the atomic file write.
             if (this.config.onTokenRefresh && tokenResponse.refresh_token !== this.config.refreshToken) {
               this.config.debugLog?.('[MELCloud] Refresh token rotated, saving to config...');
+              void this.config.auditLog?.write({
+                event: 'persist_attempt',
+                newTokenSuffix,
+              });
               try {
                 await this.config.onTokenRefresh(tokenResponse.refresh_token);
+                void this.config.auditLog?.write({
+                  event: 'persist_success',
+                  newTokenSuffix,
+                });
               } catch (persistError) {
-                this.config.warnLog?.(
-                  `[MELCloud] Failed to persist rotated refresh token: ${persistError instanceof Error ? persistError.message : String(persistError)}`,
-                );
+                const errMsg = persistError instanceof Error ? persistError.message : String(persistError);
+                this.config.warnLog?.(`[MELCloud] Failed to persist rotated refresh token: ${errMsg}`);
+                void this.config.auditLog?.write({
+                  event: 'persist_failure',
+                  newTokenSuffix,
+                  errorMessage: errMsg,
+                });
                 // Don't reject — token is in memory and the next refresh cycle will retry the
                 // persist with whatever the next rotation produces. Rejecting would force an
                 // immediate retry that would fail with invalid_grant.
@@ -261,6 +311,11 @@ export class MELCloudAPI {
       // If we get 401, try to refresh token and retry once
       if (error instanceof Error && error.message.includes('HTTP 401') && retryCount === 0) {
         this.config.debugLog?.('[MELCloud] Got 401 error, forcing token refresh and retrying...');
+        void this.config.auditLog?.write({
+          event: 'force_refresh_on_401',
+          tokenSuffix: maskToken(this.currentRefreshToken),
+          source: `${method} ${path}`,
+        });
         this.accessToken = undefined; // Force refresh
         this.tokenExpiry = undefined;
         await this.ensureAuthenticated();

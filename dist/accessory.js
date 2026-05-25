@@ -21,6 +21,10 @@ class MELCloudAccessory {
             this.accessory.getService(this.platform.Service.HeaterCooler) ||
                 this.accessory.addService(this.platform.Service.HeaterCooler);
         this.service.setCharacteristic(this.platform.Characteristic.Name, this.device.givenDisplayName);
+        // Mark HeaterCooler as the accessory's primary service. With vane/fan Switch services
+        // also attached, iOS otherwise can't tell which one drives the tile and falls back to
+        // an expanded card view — breaking single-tap power toggle from the Home grid.
+        this.service.setPrimaryService(true);
         // Register handlers. We pair each controllable characteristic with an onGet that returns
         // synchronously from cached device state. HomeKit periodically probes characteristics; if
         // there is no onGet the probe can mark the accessory as "Not Responding" and that state

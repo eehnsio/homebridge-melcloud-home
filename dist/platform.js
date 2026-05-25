@@ -1,7 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MELCloudHomePlatform = void 0;
+const node_path_1 = __importDefault(require("node:path"));
 const accessory_1 = require("./accessory");
+const auth_audit_log_1 = require("./auth-audit-log");
 const config_manager_1 = require("./config-manager");
 const fan_speed_button_1 = require("./fan-speed-button");
 const melcloud_api_1 = require("./melcloud-api");
@@ -22,6 +27,9 @@ class MELCloudHomePlatform {
         this.log.debug('Finished initializing platform:', this.config.name);
         // Initialize config manager for token persistence
         this.configManager = new config_manager_1.ConfigManager(this.log, this.api.user.storagePath());
+        // Audit log for OAuth refresh-token lifecycle — diagnoses intermittent invalid_grant
+        // by recording every attempt, success, rotation, and persist outcome with token suffixes.
+        this.authAuditLog = new auth_audit_log_1.AuthAuditLog(node_path_1.default.join(this.api.user.storagePath(), 'melcloud-auth-audit.log'));
         this.api.on('didFinishLaunching', async () => {
             try {
                 this.debugLog('Homebridge finished launching...');
@@ -70,6 +78,7 @@ class MELCloudHomePlatform {
                     },
                     debugLog: (msg) => this.debugLog(msg),
                     warnLog: (msg) => this.log.warn(msg),
+                    auditLog: this.authAuditLog,
                 });
                 this.debugLog('MELCloud API initialized successfully');
                 await this.discoverDevices();
@@ -147,6 +156,10 @@ class MELCloudHomePlatform {
                             this.debugLog(`Adding Fan ${speedName} switch service: ${device.givenDisplayName}`);
                             switchService = mainAccessory.addService(this.Service.Switch, displayName, subtype);
                         }
+                        // Link to HeaterCooler so iOS treats the Switch as an auxiliary of the AC tile
+                        // instead of grouping them, which is what made the home-screen tile lose its
+                        // single-tap power toggle.
+                        mainAccessory.getService(this.Service.HeaterCooler)?.addLinkedService(switchService);
                         const buttonInstance = new fan_speed_button_1.FanSpeedButton(this, mainAccessory, switchService, speedKey);
                         this.fanButtonInstances.set(`${uuid}-${subtype}`, buttonInstance);
                     }
@@ -170,6 +183,7 @@ class MELCloudHomePlatform {
                             this.debugLog(`Adding Vane ${positionName} switch service: ${device.givenDisplayName}`);
                             switchService = mainAccessory.addService(this.Service.Switch, displayName, subtype);
                         }
+                        mainAccessory.getService(this.Service.HeaterCooler)?.addLinkedService(switchService);
                         const buttonInstance = new vane_button_1.VaneButton(this, mainAccessory, switchService, positionKey);
                         this.vaneButtonInstances.set(`${uuid}-${subtype}`, buttonInstance);
                     }
@@ -264,6 +278,7 @@ class MELCloudHomePlatform {
                     await this.refreshAllDevices();
                     if (this.consecutiveAuthFailures > 0) {
                         this.log.info('Connection restored.');
+                        void this.authAuditLog.write({ event: 'connection_restored' });
                     }
                     this.consecutiveAuthFailures = 0;
                 }
@@ -279,6 +294,11 @@ class MELCloudHomePlatform {
                             this.log.error('Repeated authentication failures. Your refresh token is likely expired or invalid.');
                             this.log.error('Please re-authenticate via Homebridge UI → Plugins → MELCloud Home → Settings → LOGIN VIA BROWSER');
                             this.log.error('Pausing device refresh until Homebridge is restarted.');
+                            void this.authAuditLog.write({
+                                event: 'circuit_breaker_paused',
+                                attempt: this.consecutiveAuthFailures,
+                                errorMessage: message,
+                            });
                             return; // Stop scheduling further refreshes
                         }
                     }

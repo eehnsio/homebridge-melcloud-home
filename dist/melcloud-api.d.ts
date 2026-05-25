@@ -1,9 +1,11 @@
+import { type AuthAuditLog } from './auth-audit-log';
 export interface MELCloudConfig {
     refreshToken: string;
     debug?: boolean;
     onTokenRefresh?: (newRefreshToken: string) => Promise<void> | void;
     debugLog?: (message: string) => void;
     warnLog?: (message: string) => void;
+    auditLog?: AuthAuditLog;
 }
 export interface DeviceSetting {
     name: string;

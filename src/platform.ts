@@ -7,7 +7,9 @@ import type {
   PlatformConfig,
   Service,
 } from 'homebridge';
+import path from 'node:path';
 import { MELCloudAccessory } from './accessory';
+import { AuthAuditLog } from './auth-audit-log';
 import { ConfigManager } from './config-manager';
 import { FanSpeedButton } from './fan-speed-button';
 import { type AirToAirUnit, MELCloudAPI } from './melcloud-api';
@@ -26,6 +28,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   private refreshInterval?: NodeJS.Timeout;
   private refreshTimeout?: NodeJS.Timeout;
   private configManager: ConfigManager;
+  private authAuditLog: AuthAuditLog;
   private consecutiveAuthFailures = 0;
 
   constructor(
@@ -37,6 +40,9 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
     // Initialize config manager for token persistence
     this.configManager = new ConfigManager(this.log, this.api.user.storagePath());
+    // Audit log for OAuth refresh-token lifecycle — diagnoses intermittent invalid_grant
+    // by recording every attempt, success, rotation, and persist outcome with token suffixes.
+    this.authAuditLog = new AuthAuditLog(path.join(this.api.user.storagePath(), 'melcloud-auth-audit.log'));
 
     this.api.on('didFinishLaunching', async () => {
       try {
@@ -90,6 +96,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
           },
           debugLog: (msg) => this.debugLog(msg),
           warnLog: (msg) => this.log.warn(msg),
+          auditLog: this.authAuditLog,
         });
 
         this.debugLog('MELCloud API initialized successfully');
@@ -174,6 +181,10 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
               this.debugLog(`Adding Fan ${speedName} switch service: ${device.givenDisplayName}`);
               switchService = mainAccessory.addService(this.Service.Switch, displayName, subtype);
             }
+            // Link to HeaterCooler so iOS treats the Switch as an auxiliary of the AC tile
+            // instead of grouping them, which is what made the home-screen tile lose its
+            // single-tap power toggle.
+            mainAccessory.getService(this.Service.HeaterCooler)?.addLinkedService(switchService);
             const buttonInstance = new FanSpeedButton(this, mainAccessory, switchService, speedKey);
             this.fanButtonInstances.set(`${uuid}-${subtype}`, buttonInstance);
           }
@@ -200,6 +211,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
               this.debugLog(`Adding Vane ${positionName} switch service: ${device.givenDisplayName}`);
               switchService = mainAccessory.addService(this.Service.Switch, displayName, subtype);
             }
+            mainAccessory.getService(this.Service.HeaterCooler)?.addLinkedService(switchService);
             const buttonInstance = new VaneButton(this, mainAccessory, switchService, positionKey);
             this.vaneButtonInstances.set(`${uuid}-${subtype}`, buttonInstance);
           }
@@ -307,6 +319,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
           await this.refreshAllDevices();
           if (this.consecutiveAuthFailures > 0) {
             this.log.info('Connection restored.');
+            void this.authAuditLog.write({ event: 'connection_restored' });
           }
           this.consecutiveAuthFailures = 0;
         } catch (error) {
@@ -322,6 +335,11 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
               this.log.error('Repeated authentication failures. Your refresh token is likely expired or invalid.');
               this.log.error('Please re-authenticate via Homebridge UI → Plugins → MELCloud Home → Settings → LOGIN VIA BROWSER');
               this.log.error('Pausing device refresh until Homebridge is restarted.');
+              void this.authAuditLog.write({
+                event: 'circuit_breaker_paused',
+                attempt: this.consecutiveAuthFailures,
+                errorMessage: message,
+              });
               return; // Stop scheduling further refreshes
             }
           } else {
