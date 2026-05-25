@@ -115,31 +115,49 @@ class MELCloudHomePlatform {
                 this.log.warn('  3. Try logging in again through the plugin settings');
                 return;
             }
-            // Register each device
+            // The set of UUIDs we expect to exist after this discovery pass. Anything cached but
+            // not in here gets unregistered below.
+            const expectedUuids = new Set();
+            // Register each device. As of v1.7.0, fan/vane switches are SEPARATE bridged accessories
+            // (one PlatformAccessory each) instead of child Switch services on the main HeaterCooler
+            // accessory. iOS 18+ refuses to render single-tap power toggle on the Home grid tile when
+            // an accessory has multiple interactive services, even with setPrimaryService +
+            // addLinkedService. The only reliable way to keep the AC's quick-toggle tile is to put
+            // each switch on its own accessory. Trade-off: switches initially land in the user's
+            // Default Room and need to be dragged to the right room manually (one-time per switch).
             for (const device of devices) {
-                // Main AC accessory — vane and fan-speed switches are now child Switch services on
-                // this same accessory (with subtypes), not separate accessories. This means iOS Home
-                // automatically groups them with the AC by room, and accessory settings live in one
-                // place instead of N separate "Settings" pages.
-                const uuid = this.api.hap.uuid.generate(device.id);
-                let mainAccessory = this.accessories.find((accessory) => accessory.UUID === uuid);
+                const mainUuid = this.api.hap.uuid.generate(device.id);
+                expectedUuids.add(mainUuid);
+                let mainAccessory = this.accessories.find((accessory) => accessory.UUID === mainUuid);
                 if (mainAccessory) {
                     this.debugLog('Restoring existing accessory from cache: ' + device.givenDisplayName);
                     mainAccessory.context.device = device;
+                    mainAccessory.context.kind = 'main';
+                    // MIGRATION: strip any leftover fan-/vane- child Switch services from the v1.6.x era
+                    // child-services approach. Without this they would show as ghost switches inside the
+                    // AC tile's expanded view alongside the new separate-accessory switches.
+                    for (const svc of [...mainAccessory.services]) {
+                        const sub = svc.subtype;
+                        if (sub && (sub.startsWith('fan-') || sub.startsWith('vane-'))) {
+                            this.debugLog(`Migration: removing legacy child switch service ${svc.displayName} (${sub})`);
+                            mainAccessory.removeService(svc);
+                        }
+                    }
                     this.api.updatePlatformAccessories([mainAccessory]);
                     const accessoryInstance = new accessory_1.MELCloudAccessory(this, mainAccessory);
-                    this.accessoryInstances.set(uuid, accessoryInstance);
+                    this.accessoryInstances.set(mainUuid, accessoryInstance);
                 }
                 else {
                     this.debugLog('Adding new accessory: ' + device.givenDisplayName);
-                    mainAccessory = new this.api.platformAccessory(device.givenDisplayName, uuid);
+                    mainAccessory = new this.api.platformAccessory(device.givenDisplayName, mainUuid, 21 /* Categories.AIR_CONDITIONER */);
                     mainAccessory.context.device = device;
+                    mainAccessory.context.kind = 'main';
                     this.accessories.push(mainAccessory);
                     const accessoryInstance = new accessory_1.MELCloudAccessory(this, mainAccessory);
-                    this.accessoryInstances.set(uuid, accessoryInstance);
+                    this.accessoryInstances.set(mainUuid, accessoryInstance);
                     this.api.registerPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, [mainAccessory]);
                 }
-                // Fan Speed Buttons (if enabled) — Switch services on the main accessory
+                // Fan Speed Buttons — each one is its own bridged PlatformAccessory.
                 const fanSpeedButtons = this.config.fanSpeedButtons || 'none';
                 let activeFanSpeedKeys = [];
                 if (fanSpeedButtons !== 'none' && device.capabilities.numberOfFanSpeeds > 0) {
@@ -148,23 +166,33 @@ class MELCloudHomePlatform {
                     else if (fanSpeedButtons === 'all')
                         activeFanSpeedKeys = ['auto', 'quiet', '2', '3', '4', 'max'];
                     for (const speedKey of activeFanSpeedKeys) {
-                        const subtype = `fan-${speedKey}`;
                         const speedName = fan_speed_button_1.FanSpeedButton.SPEED_NAMES[fan_speed_button_1.FanSpeedButton.SPEED_API_VALUES[speedKey]] || speedKey;
                         const displayName = `${device.givenDisplayName} Fan ${speedName}`;
-                        let switchService = mainAccessory.getServiceById(this.Service.Switch, subtype);
-                        if (!switchService) {
-                            this.debugLog(`Adding Fan ${speedName} switch service: ${device.givenDisplayName}`);
-                            switchService = mainAccessory.addService(this.Service.Switch, displayName, subtype);
+                        const accUuid = this.api.hap.uuid.generate(`${device.id}-fan-${speedKey}`);
+                        expectedUuids.add(accUuid);
+                        let accessory = this.accessories.find((a) => a.UUID === accUuid);
+                        const isNew = !accessory;
+                        if (!accessory) {
+                            this.debugLog(`Adding Fan ${speedName} accessory: ${displayName}`);
+                            accessory = new this.api.platformAccessory(displayName, accUuid, 8 /* Categories.SWITCH */);
+                            this.accessories.push(accessory);
                         }
-                        // Link to HeaterCooler so iOS treats the Switch as an auxiliary of the AC tile
-                        // instead of grouping them, which is what made the home-screen tile lose its
-                        // single-tap power toggle.
-                        mainAccessory.getService(this.Service.HeaterCooler)?.addLinkedService(switchService);
-                        const buttonInstance = new fan_speed_button_1.FanSpeedButton(this, mainAccessory, switchService, speedKey);
-                        this.fanButtonInstances.set(`${uuid}-${subtype}`, buttonInstance);
+                        accessory.context.device = device;
+                        accessory.context.kind = 'fan-button';
+                        accessory.context.deviceId = device.id;
+                        accessory.context.subtype = `fan-${speedKey}`;
+                        const switchService = accessory.getService(this.Service.Switch) || accessory.addService(this.Service.Switch, displayName);
+                        const buttonInstance = new fan_speed_button_1.FanSpeedButton(this, accessory, switchService, speedKey);
+                        this.fanButtonInstances.set(`${mainUuid}-fan-${speedKey}`, buttonInstance);
+                        if (isNew) {
+                            this.api.registerPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, [accessory]);
+                        }
+                        else {
+                            this.api.updatePlatformAccessories([accessory]);
+                        }
                     }
                 }
-                // Vane Buttons (if vaneControl === 'buttons') — Switch services on the main accessory
+                // Vane Buttons — each one is its own bridged PlatformAccessory.
                 // Legacy config: vaneButtons === 'simple' is treated as 'buttons'.
                 const vaneControl = this.config.vaneControl || this.config.vaneButtons || 'none';
                 const enableVaneButtons = vaneControl === 'buttons' || vaneControl === 'simple';
@@ -175,53 +203,39 @@ class MELCloudHomePlatform {
                     // never exposed as its own button — it would just be a "not Swing" duplicate.
                     activeVanePositions = ['swing'];
                     for (const positionKey of activeVanePositions) {
-                        const subtype = `vane-${positionKey}`;
                         const positionName = vane_button_1.VaneButton.POSITION_NAMES[positionKey] || positionKey;
                         const displayName = `${device.givenDisplayName} Vane ${positionName}`;
-                        let switchService = mainAccessory.getServiceById(this.Service.Switch, subtype);
-                        if (!switchService) {
-                            this.debugLog(`Adding Vane ${positionName} switch service: ${device.givenDisplayName}`);
-                            switchService = mainAccessory.addService(this.Service.Switch, displayName, subtype);
+                        const accUuid = this.api.hap.uuid.generate(`${device.id}-vane-${positionKey}`);
+                        expectedUuids.add(accUuid);
+                        let accessory = this.accessories.find((a) => a.UUID === accUuid);
+                        const isNew = !accessory;
+                        if (!accessory) {
+                            this.debugLog(`Adding Vane ${positionName} accessory: ${displayName}`);
+                            accessory = new this.api.platformAccessory(displayName, accUuid, 8 /* Categories.SWITCH */);
+                            this.accessories.push(accessory);
                         }
-                        mainAccessory.getService(this.Service.HeaterCooler)?.addLinkedService(switchService);
-                        const buttonInstance = new vane_button_1.VaneButton(this, mainAccessory, switchService, positionKey);
-                        this.vaneButtonInstances.set(`${uuid}-${subtype}`, buttonInstance);
-                    }
-                }
-                // Remove Switch services that no longer match the configured set (e.g. user switched
-                // fanSpeedButtons from 'all' to 'simple', or disabled vane buttons entirely).
-                const allowedSubtypes = new Set([
-                    ...activeFanSpeedKeys.map((k) => `fan-${k}`),
-                    ...activeVanePositions.map((p) => `vane-${p}`),
-                ]);
-                for (const svc of [...mainAccessory.services]) {
-                    const subtype = svc.subtype;
-                    if (subtype &&
-                        (subtype.startsWith('fan-') || subtype.startsWith('vane-')) &&
-                        !allowedSubtypes.has(subtype)) {
-                        this.debugLog(`Removing stale switch service: ${svc.displayName} (${subtype})`);
-                        mainAccessory.removeService(svc);
+                        accessory.context.device = device;
+                        accessory.context.kind = 'vane-button';
+                        accessory.context.deviceId = device.id;
+                        accessory.context.subtype = `vane-${positionKey}`;
+                        const switchService = accessory.getService(this.Service.Switch) || accessory.addService(this.Service.Switch, displayName);
+                        const buttonInstance = new vane_button_1.VaneButton(this, accessory, switchService, positionKey);
+                        this.vaneButtonInstances.set(`${mainUuid}-vane-${positionKey}`, buttonInstance);
+                        if (isNew) {
+                            this.api.registerPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, [accessory]);
+                        }
+                        else {
+                            this.api.updatePlatformAccessories([accessory]);
+                        }
                     }
                 }
             }
-            // Remove accessories for devices that no longer exist, plus legacy standalone button
-            // accessories from before the 1.6.0 refactor (now child services on the main accessory).
-            const devicesIds = devices.map((d) => d.id);
+            // Remove any cached accessory that's no longer expected: devices that vanished,
+            // switches that were disabled in config, or legacy standalone accessories from
+            // pre-1.6.0 / child-service-era variants.
             const accessoriesToRemove = this.accessories.filter((accessory) => {
-                const deviceId = accessory.context.device?.id;
-                // Remove if device no longer exists
-                if (!deviceId || !devicesIds.includes(deviceId)) {
-                    return true;
-                }
-                // Remove deprecated standalone accessories. As of 1.6.0, vane and fan-speed buttons
-                // are child Switch services on the main AC accessory — anything standalone is legacy.
-                // Older builds also had isSwingAccessory / isFanAccessory variants.
-                if (accessory.context.isFanButton ||
-                    accessory.context.isVaneButton ||
-                    accessory.context.isVaneSlider ||
-                    accessory.context.isSwingAccessory ||
-                    accessory.context.isFanAccessory) {
-                    this.debugLog(`Removing deprecated standalone accessory: ${accessory.displayName}`);
+                if (!expectedUuids.has(accessory.UUID)) {
+                    this.debugLog(`Removing unexpected/orphaned accessory: ${accessory.displayName}`);
                     return true;
                 }
                 return false;
