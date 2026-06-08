@@ -160,16 +160,17 @@ export class FanSpeedButton {
     }
   }
 
+  // Whether this button should read as ON: AC powered on AND its speed is the active one.
+  private computeShouldBeOn(): boolean {
+    return this.getSettings().Power === 'True' && this.isCurrentSpeed();
+  }
+
   // Update from device state (called by platform refresh)
   public updateFromDevice(device: AirToAirUnit) {
     this.device = device;
     this.accessory.context.device = device;
 
-    const settings = this.getSettings();
-    const isPowerOn = settings.Power === 'True';
-    const isThisSpeed = this.isCurrentSpeed();
-    const shouldBeOn = isPowerOn && isThisSpeed;
-
+    const shouldBeOn = this.computeShouldBeOn();
     const currentValue = this.service.getCharacteristic(this.platform.Characteristic.On).value;
     if (shouldBeOn !== currentValue) {
       this.platform.debugLog(

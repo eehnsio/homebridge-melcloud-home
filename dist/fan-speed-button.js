@@ -101,14 +101,15 @@ class FanSpeedButton {
             throw new this.platform.api.hap.HapStatusError(-70402 /* this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
+    // Whether this button should read as ON: AC powered on AND its speed is the active one.
+    computeShouldBeOn() {
+        return this.getSettings().Power === 'True' && this.isCurrentSpeed();
+    }
     // Update from device state (called by platform refresh)
     updateFromDevice(device) {
         this.device = device;
         this.accessory.context.device = device;
-        const settings = this.getSettings();
-        const isPowerOn = settings.Power === 'True';
-        const isThisSpeed = this.isCurrentSpeed();
-        const shouldBeOn = isPowerOn && isThisSpeed;
+        const shouldBeOn = this.computeShouldBeOn();
         const currentValue = this.service.getCharacteristic(this.platform.Characteristic.On).value;
         if (shouldBeOn !== currentValue) {
             this.platform.debugLog(`[${this.device.givenDisplayName} Fan ${this.getSpeedDisplayName()}] Update: ${currentValue} -> ${shouldBeOn}`);

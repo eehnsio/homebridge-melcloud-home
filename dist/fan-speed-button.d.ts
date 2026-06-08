@@ -29,6 +29,7 @@ export declare class FanSpeedButton {
     getOn(): Promise<CharacteristicValue>;
     setOn(value: CharacteristicValue): Promise<void>;
     private setFanSpeed;
+    private computeShouldBeOn;
     updateFromDevice(device: AirToAirUnit): void;
 }
 //# sourceMappingURL=fan-speed-button.d.ts.map

@@ -107,14 +107,15 @@ class VaneButton {
             throw new this.platform.api.hap.HapStatusError(-70402 /* this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
+    // Whether this button should read as ON: AC powered on AND its vane position is the active one.
+    computeShouldBeOn() {
+        return this.getSettings().Power === 'True' && this.isCurrentPosition();
+    }
     // Update from device state (called by platform refresh)
     updateFromDevice(device) {
         this.device = device;
         this.accessory.context.device = device;
-        const settings = this.getSettings();
-        const isPowerOn = settings.Power === 'True';
-        const isThisPosition = this.isCurrentPosition();
-        const shouldBeOn = isPowerOn && isThisPosition;
+        const shouldBeOn = this.computeShouldBeOn();
         const currentValue = this.service.getCharacteristic(this.platform.Characteristic.On).value;
         if (shouldBeOn !== currentValue) {
             this.platform.debugLog(`[${this.device.givenDisplayName} Vane ${VaneButton.POSITION_NAMES[this.positionKey]}] Update: ${currentValue} -> ${shouldBeOn}`);

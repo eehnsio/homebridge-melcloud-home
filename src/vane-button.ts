@@ -161,16 +161,17 @@ export class VaneButton {
     }
   }
 
+  // Whether this button should read as ON: AC powered on AND its vane position is the active one.
+  private computeShouldBeOn(): boolean {
+    return this.getSettings().Power === 'True' && this.isCurrentPosition();
+  }
+
   // Update from device state (called by platform refresh)
   public updateFromDevice(device: AirToAirUnit) {
     this.device = device;
     this.accessory.context.device = device;
 
-    const settings = this.getSettings();
-    const isPowerOn = settings.Power === 'True';
-    const isThisPosition = this.isCurrentPosition();
-    const shouldBeOn = isPowerOn && isThisPosition;
-
+    const shouldBeOn = this.computeShouldBeOn();
     const currentValue = this.service.getCharacteristic(this.platform.Characteristic.On).value;
     if (shouldBeOn !== currentValue) {
       this.platform.debugLog(

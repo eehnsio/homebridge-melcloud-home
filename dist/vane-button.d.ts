@@ -23,6 +23,7 @@ export declare class VaneButton {
     getOn(): Promise<CharacteristicValue>;
     setOn(value: CharacteristicValue): Promise<void>;
     private setVanePosition;
+    private computeShouldBeOn;
     updateFromDevice(device: AirToAirUnit): void;
 }
 //# sourceMappingURL=vane-button.d.ts.map

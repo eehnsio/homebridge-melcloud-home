@@ -702,25 +702,22 @@ export class MELCloudAccessory {
       `[${this.device.givenDisplayName}] updateCharacteristics() called - Power='${settings.Power}', Mode='${settings.OperationMode}', Temp='${settings.RoomTemperature}'`,
     );
 
-    // Push every cycle via sendEventNotification() — it bypasses updateValue()'s dedupe so
-    // HomeKit receives a HAP event every refresh even when values are unchanged. Without this,
-    // an OFF accessory (Active=0, State=INACTIVE) would never emit an event after initial
-    // startup, and iOS latches "Not Responding" on silent bridges.
+    // Push state via updateCharacteristic() — it dedupes, so an event only goes out when a value
+    // actually changes (e.g. adjusted from the MELCloud app). HomeKit liveness does NOT depend on
+    // these pushes; it is satisfied by the synchronous onGet handlers answering read probes. (We
+    // previously forced a sendEventNotification heartbeat here to fight "Not Responding" on quiet
+    // bridges — that was a misdiagnosis; see the CLAUDE.md gotcha.)
 
     const activeValue = settings.Power === 'True' ? 1 : 0;
-    this.service.getCharacteristic(this.platform.Characteristic.Active).sendEventNotification(activeValue);
+    this.service.updateCharacteristic(this.platform.Characteristic.Active, activeValue);
 
     const currentState = this.computeCurrentState(settings);
-    this.service
-      .getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState)
-      .sendEventNotification(currentState);
+    this.service.updateCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState, currentState);
 
     const targetState = this.computeTargetState(settings);
-    this.service
-      .getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState)
-      .sendEventNotification(targetState);
+    this.service.updateCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState, targetState);
 
-    // Current temperature — forced heartbeat via sendEventNotification()
+    // Current temperature
     const currentTemp = parseFloat(settings.RoomTemperature);
     const cachedTemp = this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).value;
     if (currentTemp !== cachedTemp) {
@@ -729,14 +726,10 @@ export class MELCloudAccessory {
       );
     }
     const validCurrentTemp = Number.isNaN(currentTemp) ? ((cachedTemp as number) ?? 20) : currentTemp;
-    this.service
-      .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-      .sendEventNotification(validCurrentTemp);
+    this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, validCurrentTemp);
 
     if (this.temperatureSensor) {
-      this.temperatureSensor
-        .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-        .sendEventNotification(validCurrentTemp);
+      this.temperatureSensor.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, validCurrentTemp);
     }
 
     // Threshold temperatures
@@ -759,17 +752,13 @@ export class MELCloudAccessory {
       Math.max(this.device.capabilities.minTempCoolDry, HOMEKIT_MIN_COOLING),
       Math.min(this.device.capabilities.maxTempCoolDry, this.coolingThreshold),
     );
-    this.service
-      .getCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature)
-      .sendEventNotification(coolingTemp);
+    this.service.updateCharacteristic(this.platform.Characteristic.CoolingThresholdTemperature, coolingTemp);
 
     const heatingTemp = Math.max(
       Math.max(this.device.capabilities.minTempHeat, HOMEKIT_MIN_HEATING),
       Math.min(this.device.capabilities.maxTempHeat, this.heatingThreshold),
     );
-    this.service
-      .getCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature)
-      .sendEventNotification(heatingTemp);
+    this.service.updateCharacteristic(this.platform.Characteristic.HeatingThresholdTemperature, heatingTemp);
 
     // Fan speed
     if (this.device.capabilities.numberOfFanSpeeds > 0) {
@@ -788,7 +777,7 @@ export class MELCloudAccessory {
         '5': 6,
       };
       const speed = reverseSpeedMap[settings.SetFanSpeed] ?? 1;
-      this.service.getCharacteristic(this.platform.Characteristic.RotationSpeed).sendEventNotification(speed);
+      this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, speed);
     }
   }
 
