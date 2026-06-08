@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.6.0...v1.7.0) (2026-06-08)
+
+
+### Features
+
+* add auth audit log and harden HomeKit accessory shape ([42a4a82](https://github.com/eehnsio/homebridge-melcloud-home/commit/42a4a8236e050eeb8015e231ab194304a747ef54))
+
+
+### Code Refactoring
+
+* **homekit:** split fan/vane switches into separate accessories ([67c77bd](https://github.com/eehnsio/homebridge-melcloud-home/commit/67c77bdcdd8cdb4c388b95b9a3073dd0001b81a3))
+* restore onGet + push-on-change, remove forced HAP heartbeat ([9d7f43b](https://github.com/eehnsio/homebridge-melcloud-home/commit/9d7f43bf2971ebfa4aa0d38acf403c40db111889))
+
+
+### Miscellaneous
+
+* add Apache-2.0 LICENSE and NOTICE files ([672299f](https://github.com/eehnsio/homebridge-melcloud-home/commit/672299f391ec26933e1fd6d92c569aedf5bbdfdc))
+
 ## [1.6.0](https://github.com/eehnsio/homebridge-melcloud-home/compare/homebridge-melcloud-home-v1.5.1...homebridge-melcloud-home-v1.6.0) (2026-05-03)
 
 
