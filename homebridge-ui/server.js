@@ -32,20 +32,31 @@ class PluginUiServer extends HomebridgePluginUiServer {
       const tokens = await this.getTokensViaCurl(email, password);
       console.log('[MELCloudHome UI] OAuth tokens obtained successfully');
 
-      return {
+      const result = {
         success: true,
         message: 'Login successful! Refresh token obtained.',
         refreshToken: tokens.refreshToken,
         instructions:
           'Copy the token below and paste it in the "Refresh Token" field in the plugin configuration, then click Save.',
       };
+
+      // Also deliver over the independent event/stream channel. In
+      // homebridge-config-ui-x 5.21+ the request/response promise can hang and
+      // never resolve in the iframe (same regression worked around for
+      // savePluginConfig). pushEvent is a separate code path, so the UI gets a
+      // second chance to receive the token even when the response is lost.
+      this.pushEvent('login-result', result);
+
+      return result;
     } catch (error) {
       console.error('[MELCloudHome UI] Login error:', error);
       console.error('[MELCloudHome UI] Error stack:', error.stack);
-      return {
+      const errorResult = {
         success: false,
         error: error.message || 'Login failed. Please check your credentials.',
       };
+      this.pushEvent('login-result', errorResult);
+      return errorResult;
     }
   }
 

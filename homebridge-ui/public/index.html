@@ -207,13 +207,34 @@
                 button.innerHTML = 'Logging in...';
                 resultDiv.innerHTML = '<div class="alert alert-info">Connecting to MELCloud...</div>';
 
-                try {
-                    const response = await window.homebridge.request('/login-with-credentials', {
-                        email,
-                        password
-                    });
+                // homebridge-config-ui-x 5.21+ can leave request()'s response promise
+                // hanging so the token never arrives even though the backend obtained it
+                // (a restart of Homebridge clears it). Race the request against the
+                // independent event channel (server also pushEvent's the result) and a
+                // hard timeout, so the UI never gets stuck permanently on "Logging in...".
+                const LOGIN_TIMEOUT_MS = 90000;
+                let eventHandler;
+                let timeoutTimer;
+                const viaEvent = new Promise((resolve) => {
+                    eventHandler = (event) => resolve(event.data);
+                    window.homebridge.addEventListener('login-result', eventHandler);
+                });
+                const viaTimeout = new Promise((resolve) => {
+                    timeoutTimer = setTimeout(() => resolve({ __timeout: true }), LOGIN_TIMEOUT_MS);
+                });
 
-                    if (response.success && response.refreshToken) {
+                try {
+                    const response = await Promise.race([
+                        window.homebridge.request('/login-with-credentials', { email, password }),
+                        viaEvent,
+                        viaTimeout
+                    ]);
+
+                    if (response && response.__timeout) {
+                        throw new Error('The UI lost contact with the server while logging in. If the Homebridge log shows "Refresh token obtained", reload this settings page (or restart Homebridge) and the token should appear in Step 2 — otherwise try again.');
+                    }
+
+                    if (response && response.success && response.refreshToken) {
                         // Auto-fill the token in Step 2
                         document.getElementById('token-input').value = response.refreshToken;
                         resultDiv.innerHTML = '<div class="alert alert-success">✓ Login successful! Token obtained. See Step 2 below.</div>';
@@ -222,7 +243,7 @@
                         // Scroll to Step 2
                         document.getElementById('token-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
                     } else {
-                        throw new Error(response.error || 'Login failed');
+                        throw new Error((response && response.error) || 'Login failed');
                     }
                 } catch (error) {
                     console.error('[UI] Direct login error:', error);
@@ -238,10 +259,12 @@
                     errorAlert.appendChild(small);
                     resultDiv.innerHTML = '';
                     resultDiv.appendChild(errorAlert);
+                } finally {
+                    clearTimeout(timeoutTimer);
+                    window.homebridge.removeEventListener('login-result', eventHandler);
+                    button.disabled = false;
+                    button.innerHTML = 'Login and Get Token';
                 }
-
-                button.disabled = false;
-                button.innerHTML = 'Login and Get Token';
             });
 
             // Step 2: Save token
