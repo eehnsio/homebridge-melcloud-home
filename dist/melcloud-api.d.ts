@@ -78,9 +78,20 @@ export declare class MELCloudAPI {
     private tokenExpiry?;
     private currentRefreshToken?;
     private refreshPromise?;
+    private readonly configTokenSuffix;
+    private lastRotatedSuffix?;
+    private lastPersistedSuffix?;
+    private lastPersistedAt?;
     private readonly CLIENT_AUTH;
     private readonly httpsAgent;
     constructor(config: MELCloudConfig);
+    /**
+     * Build the self-contained context attached to a refresh_failure entry, so a
+     * single log line is enough to tell whose side the failure is on: whether the
+     * rejected token is the one we last persisted (MELCloud rejecting a valid
+     * token) or a stale/never-saved one (our side / the UI never saved a login).
+     */
+    private failureContext;
     /**
      * Check if access token is expired or about to expire
      */

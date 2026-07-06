@@ -110,6 +110,33 @@
                         <input
                             class="form-check-input"
                             type="checkbox"
+                            id="auth-audit-log"
+                            checked
+                        >
+                        <label class="form-check-label" for="auth-audit-log">
+                            Auth Audit Log
+                        </label>
+                        <div>
+                            <small class="text-muted">
+                                Records OAuth token-refresh <strong>failures</strong> to
+                                <code>melcloud-auth-audit.log</code> in your Homebridge storage folder
+                                (only the last 8 characters of tokens — never the token itself or your
+                                password). Successful refreshes aren't logged, so the file stays tiny.
+                                It's on by default because token-refresh failures are intermittent and
+                                unpredictable — without this log there's usually no way to diagnose ACs
+                                going "Not Responding" due to <code>invalid_grant</code>. Safe to turn off.
+                            </small>
+                            <button type="button" id="clear-auth-log-button" class="btn btn-outline-secondary btn-sm mt-2">
+                                Clear Auth Log
+                            </button>
+                            <div id="clear-auth-log-result"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
                             id="expose-temperature-sensor"
                             checked
                         >
@@ -295,6 +322,7 @@
                             refreshToken: token,
                             refreshInterval: 30,
                             debug: false,
+                            authAuditLog: true,
                             exposeTemperatureSensor: true,
                             fanSpeedButtons: 'none',
                             vaneControl: 'none'
@@ -329,9 +357,35 @@
                 button.innerHTML = 'Save Token';
             });
 
+            // Clear auth log button
+            document.getElementById('clear-auth-log-button').addEventListener('click', async () => {
+                const button = document.getElementById('clear-auth-log-button');
+                const resultDiv = document.getElementById('clear-auth-log-result');
+                button.disabled = true;
+                button.innerHTML = 'Clearing...';
+                try {
+                    const response = await window.homebridge.request('/clear-auth-log');
+                    if (response?.success) {
+                        resultDiv.innerHTML = '<div class="alert alert-success mt-2 mb-0">✓ Auth audit log cleared.</div>';
+                    } else {
+                        throw new Error(response?.error || 'Failed to clear log');
+                    }
+                } catch (error) {
+                    console.error('[UI] Clear auth log error:', error);
+                    const errorAlert = document.createElement('div');
+                    errorAlert.className = 'alert alert-danger mt-2 mb-0';
+                    errorAlert.textContent = `Error: ${error.message}`;
+                    resultDiv.innerHTML = '';
+                    resultDiv.appendChild(errorAlert);
+                }
+                button.disabled = false;
+                button.innerHTML = 'Clear Auth Log';
+            });
+
             // Auto-save settings when changed
             document.getElementById('refresh-interval').addEventListener('change', saveSettings);
             document.getElementById('debug-mode').addEventListener('change', saveSettings);
+            document.getElementById('auth-audit-log').addEventListener('change', saveSettings);
             document.getElementById('expose-temperature-sensor').addEventListener('change', saveSettings);
             document.getElementById('fan-speed-buttons').addEventListener('change', saveSettings);
             document.getElementById('vane-control').addEventListener('change', saveSettings);
@@ -350,6 +404,7 @@
                 const rawInterval = parseInt(document.getElementById('refresh-interval').value, 10);
                 config.refreshInterval = Math.max(10, Math.min(3600, Number.isNaN(rawInterval) ? 30 : rawInterval));
                 config.debug = document.getElementById('debug-mode').checked;
+                config.authAuditLog = document.getElementById('auth-audit-log').checked;
                 config.exposeTemperatureSensor = document.getElementById('expose-temperature-sensor').checked;
                 config.fanSpeedButtons = document.getElementById('fan-speed-buttons').value;
                 config.vaneControl = document.getElementById('vane-control').value;
@@ -377,6 +432,7 @@
                     const config = pluginConfig[0];
                     document.getElementById('refresh-interval').value = config.refreshInterval || 30;
                     document.getElementById('debug-mode').checked = config.debug || false;
+                    document.getElementById('auth-audit-log').checked = config.authAuditLog !== false; // Default true
                     document.getElementById('expose-temperature-sensor').checked = config.exposeTemperatureSensor !== false; // Default true
                     document.getElementById('fan-speed-buttons').value = config.fanSpeedButtons || 'none';
                     // Support legacy config migration: vaneButtons "simple" -> vaneControl "buttons"

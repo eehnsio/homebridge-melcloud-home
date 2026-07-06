@@ -27,9 +27,10 @@ class MELCloudHomePlatform {
         this.log.debug('Finished initializing platform:', this.config.name);
         // Initialize config manager for token persistence
         this.configManager = new config_manager_1.ConfigManager(this.log, this.api.user.storagePath());
-        // Audit log for OAuth refresh-token lifecycle — diagnoses intermittent invalid_grant
-        // by recording every attempt, success, rotation, and persist outcome with token suffixes.
-        this.authAuditLog = new auth_audit_log_1.AuthAuditLog(node_path_1.default.join(this.api.user.storagePath(), 'melcloud-auth-audit.log'));
+        // Audit log for OAuth refresh failures — diagnoses intermittent invalid_grant by
+        // recording only failures/recovery (not routine successes) with self-contained
+        // token context. On by default; opt out with `authAuditLog: false`.
+        this.authAuditLog = new auth_audit_log_1.AuthAuditLog(node_path_1.default.join(this.api.user.storagePath(), 'melcloud-auth-audit.log'), this.config.authAuditLog !== false);
         this.api.on('didFinishLaunching', async () => {
             try {
                 this.debugLog('Homebridge finished launching...');

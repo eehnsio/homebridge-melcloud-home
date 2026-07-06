@@ -37,6 +37,12 @@
         "default": false,
         "description": "Enable debug logging"
       },
+      "authAuditLog": {
+        "title": "Auth Audit Log",
+        "type": "boolean",
+        "default": true,
+        "description": "Records OAuth token-refresh FAILURES to melcloud-auth-audit.log in your Homebridge storage folder (only the last 8 characters of tokens — never the token itself or your password). Successful refreshes are not logged, so the file stays tiny. It is on by default because token-refresh failures are intermittent and unpredictable: without this log there is usually no way to diagnose ACs going 'Not Responding' due to invalid_grant. Safe to turn off."
+      },
       "exposeTemperatureSensor": {
         "title": "Expose Temperature Sensor",
         "type": "boolean",

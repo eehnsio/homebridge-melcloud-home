@@ -1,6 +1,8 @@
 const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
 const crypto = require('node:crypto');
 const https = require('node:https');
+const fs = require('node:fs');
+const path = require('node:path');
 
 class PluginUiServer extends HomebridgePluginUiServer {
   constructor() {
@@ -9,8 +11,32 @@ class PluginUiServer extends HomebridgePluginUiServer {
     // Handler to save email/password and get token automatically
     this.onRequest('/login-with-credentials', this.loginWithCredentials.bind(this));
 
+    // Handler to clear the auth audit log file
+    this.onRequest('/clear-auth-log', this.clearAuthLog.bind(this));
+
     // Ready
     this.ready();
+  }
+
+  /**
+   * Delete the auth audit log from the Homebridge storage directory. The running
+   * plugin recreates it on the next failure if logging is still enabled. Used by
+   * the "Clear Auth Log" button in the custom UI so users don't need shell access.
+   */
+  async clearAuthLog() {
+    try {
+      const storagePath = this.homebridgeStoragePath;
+      if (!storagePath) {
+        return { success: false, error: 'Could not determine Homebridge storage path' };
+      }
+      const logPath = path.join(storagePath, 'melcloud-auth-audit.log');
+      await fs.promises.rm(logPath, { force: true });
+      console.log('[MELCloudHome UI] Auth audit log cleared:', logPath);
+      return { success: true, message: 'Auth audit log cleared.' };
+    } catch (error) {
+      console.error('[MELCloudHome UI] Failed to clear auth log:', error);
+      return { success: false, error: error.message || 'Failed to clear auth log' };
+    }
   }
 
   /**

@@ -41,9 +41,13 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
     // Initialize config manager for token persistence
     this.configManager = new ConfigManager(this.log, this.api.user.storagePath());
-    // Audit log for OAuth refresh-token lifecycle — diagnoses intermittent invalid_grant
-    // by recording every attempt, success, rotation, and persist outcome with token suffixes.
-    this.authAuditLog = new AuthAuditLog(path.join(this.api.user.storagePath(), 'melcloud-auth-audit.log'));
+    // Audit log for OAuth refresh failures — diagnoses intermittent invalid_grant by
+    // recording only failures/recovery (not routine successes) with self-contained
+    // token context. On by default; opt out with `authAuditLog: false`.
+    this.authAuditLog = new AuthAuditLog(
+      path.join(this.api.user.storagePath(), 'melcloud-auth-audit.log'),
+      this.config.authAuditLog !== false,
+    );
 
     this.api.on('didFinishLaunching', async () => {
       try {
