@@ -326,15 +326,23 @@ class MELCloudHomePlatform {
         scheduleNext();
     }
     async refreshAllDevices() {
-        try {
-            const devices = await this.getAPI().getAllDevices();
-            this.debugLog(`Refreshing ${devices.length} devices...`);
-            for (const device of devices) {
+        // getAllDevices() MUST be allowed to throw here: the callers' catch blocks
+        // (the self-rescheduling refresh loop in particular) count consecutive auth
+        // failures and trip the circuit breaker off that thrown error. Wrapping the
+        // whole method in a swallowing try/catch was the long-standing bug that kept
+        // the breaker from ever firing — every failed refresh resolved normally, so
+        // consecutiveAuthFailures reset to 0 each cycle and invalid_grant hammered
+        // MELCloud forever. Only the per-device update is guarded, so one bad
+        // accessory can't abort the refresh or mask an auth failure.
+        const devices = await this.getAPI().getAllDevices();
+        this.debugLog(`Refreshing ${devices.length} devices...`);
+        for (const device of devices) {
+            try {
                 this.updateDeviceAccessories(device);
             }
-        }
-        catch (error) {
-            this.log.error('Failed to refresh devices:', error);
+            catch (error) {
+                this.debugLog(`Failed to update accessories for device ${device.id}: ${error instanceof Error ? error.message : String(error)}`);
+            }
         }
     }
     getAPI() {
