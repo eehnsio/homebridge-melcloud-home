@@ -47,23 +47,28 @@ export class MELCloudAccessory {
     // Register handlers. We pair each controllable characteristic with an onGet that returns
     // synchronously from cached device state. HomeKit periodically probes characteristics; if
     // there is no onGet the probe can mark the accessory as "Not Responding" and that state
-    // sticks until the user opens the accessory detail view. onGet handlers never throw — they
+    // sticks until the user opens the accessory detail view. The readers never throw — they
     // return the last-known value or a safe default.
+    // Each onGet is wrapped in guardRead(): it serves that cached value normally, but once the
+    // auth circuit breaker has tripped (cloud connection genuinely dead) it throws so the tile
+    // honestly shows "Not Responding" instead of stale state. See guardRead() for the rationale.
     this.service
       .getCharacteristic(this.platform.Characteristic.Active)
-      .onGet(() => this.getActive())
+      .onGet(() => this.guardRead(() => this.getActive()))
       .onSet(this.setActive.bind(this));
 
     this.service
       .getCharacteristic(this.platform.Characteristic.CurrentHeaterCoolerState)
-      .onGet(() => this.getCurrentState());
+      .onGet(() => this.guardRead(() => this.getCurrentState()));
 
     this.service
       .getCharacteristic(this.platform.Characteristic.TargetHeaterCoolerState)
-      .onGet(() => this.getTargetState())
+      .onGet(() => this.guardRead(() => this.getTargetState()))
       .onSet(this.setTargetState.bind(this));
 
-    this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature).onGet(() => this.getCurrentTemp());
+    this.service
+      .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+      .onGet(() => this.guardRead(() => this.getCurrentTemp()));
 
     // HomeKit has strict minimum values for temperature thresholds
     // Cooling: min 10°C (actually enforces 16°C in practice)
@@ -83,7 +88,7 @@ export class MELCloudAccessory {
         maxValue: coolingMax,
         minStep: this.device.capabilities.hasHalfDegreeIncrements ? 0.5 : 1,
       })
-      .onGet(() => this.getCoolingThreshold(coolingMin, coolingMax))
+      .onGet(() => this.guardRead(() => this.getCoolingThreshold(coolingMin, coolingMax)))
       .onSet(this.setCoolingThresholdTemperature.bind(this));
 
     // Set up heating threshold with safe default value first to avoid validation warnings
@@ -97,7 +102,7 @@ export class MELCloudAccessory {
         maxValue: heatingMax,
         minStep: this.device.capabilities.hasHalfDegreeIncrements ? 0.5 : 1,
       })
-      .onGet(() => this.getHeatingThreshold(heatingMin, heatingMax))
+      .onGet(() => this.guardRead(() => this.getHeatingThreshold(heatingMin, heatingMax)))
       .onSet(this.setHeatingThresholdTemperature.bind(this));
 
     // Optional: Rotation Speed for fan speed
@@ -110,7 +115,7 @@ export class MELCloudAccessory {
           maxValue: this.device.capabilities.numberOfFanSpeeds + 1, // +1 because we shifted range
           minStep: 1,
         })
-        .onGet(() => this.getRotationSpeed())
+        .onGet(() => this.guardRead(() => this.getRotationSpeed()))
         .onSet(this.setRotationSpeed.bind(this));
     }
 
@@ -132,7 +137,7 @@ export class MELCloudAccessory {
 
       this.temperatureSensor
         .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-        .onGet(() => this.getCurrentTemp());
+        .onGet(() => this.guardRead(() => this.getCurrentTemp()));
     } else {
       // Remove temperature sensor if it exists but is now disabled
       const existingSensor = this.accessory.getService(this.platform.Service.TemperatureSensor);
@@ -176,6 +181,24 @@ export class MELCloudAccessory {
 
   private getSettings() {
     return MELCloudAPI.parseSettings(this.device.settings);
+  }
+
+  /**
+   * Wrap a synchronous onGet reader. Returns cached state normally, but throws a
+   * (per-read, self-clearing) HapStatusError once the cloud connection is genuinely
+   * dead — the auth circuit breaker tripped — so HomeKit shows an honest "Not
+   * Responding" instead of stale state. This is the ONE sanctioned place onGet may
+   * throw: it is tightly gated on the tripped breaker and clears on the next valid
+   * read after recovery/restart. The reader itself must still never throw (it returns
+   * a safe default), so the only throw path is the deliberate connection-dead one.
+   */
+  private guardRead<T>(read: () => T): T {
+    if (!this.platform.isConnectionHealthy()) {
+      throw new this.platform.api.hap.HapStatusError(
+        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE,
+      );
+    }
+    return read();
   }
 
   async setActive(value: CharacteristicValue) {

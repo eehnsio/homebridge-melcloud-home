@@ -31,6 +31,19 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     private startRefreshInterval;
     private refreshAllDevices;
     getAPI(): MELCloudAPI;
+    /**
+     * Whether the cloud connection is currently usable. Returns false only once the
+     * auth circuit breaker has tripped (3 consecutive auth failures, which also paused
+     * the refresh loop) — i.e. the refresh token is dead and every request will fail
+     * until the user re-logs in and restarts. Accessories read this to surface an
+     * honest "Not Responding" from onGet when the cloud is genuinely gone, rather than
+     * serving stale cached state that makes commands look like they worked.
+     *
+     * Deliberately gated on the *tripped* breaker (>= 3), NOT on transient 1–2 failures,
+     * so a brief blip never false-latches "Not Responding" (the historical footgun).
+     * Self-clears: a fresh process after restart starts at 0 = healthy.
+     */
+    isConnectionHealthy(): boolean;
     refreshDevice(_deviceId: string): Promise<void>;
     /**
      * Update all accessories (main AC, fan buttons, vane buttons) for a single device
