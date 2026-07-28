@@ -119,9 +119,12 @@
                         <div>
                             <small class="text-muted">
                                 Records OAuth token-refresh <strong>failures</strong> to
-                                <code>melcloud-auth-audit.log</code> in your Homebridge storage folder
+                                <code>melcloud-auth-audit.log</code> in your Homebridge storage folder,
+                                plus a one-line marker each time you log in here
                                 (only the last 8 characters of tokens — never the token itself or your
                                 password). Successful refreshes aren't logged, so the file stays tiny.
+                                The login markers are what let a failure tell you how many days the
+                                token lasted before MELCloud revoked it.
                                 It's on by default because token-refresh failures are intermittent and
                                 unpredictable — without this log there's usually no way to diagnose ACs
                                 going "Not Responding" due to <code>invalid_grant</code>. Safe to turn off.

@@ -23,6 +23,19 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
      */
     debugLog(message: string, ...args: unknown[]): void;
     /**
+     * When did the refresh-token family currently in config.json come into being?
+     *
+     * Refresh tokens rotate every ~55 minutes, so the token in config says nothing
+     * about the age of the grant behind it — only the browser login that created it
+     * does, and that is written by the custom UI as a `family_start` entry. Reading
+     * it here lets a later `invalid_grant` record how long the family lived.
+     *
+     * With no anchor in the log — plugin upgraded mid-family, or a token pasted in
+     * by hand — bootstrap one now. That timestamp is a lower bound, not a login, so
+     * it is tagged `plugin-start` to keep the two apart when reading the log.
+     */
+    private resolveFamilyStart;
+    /**
      * Initialize authentication - uses OAuth refresh token from Homebridge UI
      */
     private initializeAuthentication;

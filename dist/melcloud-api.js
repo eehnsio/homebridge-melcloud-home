@@ -21,6 +21,10 @@ class MELCloudAPI {
      * single log line is enough to tell whose side the failure is on: whether the
      * rejected token is the one we last persisted (MELCloud rejecting a valid
      * token) or a stale/never-saved one (our side / the UI never saved a login).
+     *
+     * `familyAgeDays` closes the loop on the other half of the diagnosis: how long
+     * this token family survived before it was revoked, without having to correlate
+     * the failure against a login you have to remember.
      */
     failureContext(usedTokenSuffix) {
         return {
@@ -28,7 +32,23 @@ class MELCloudAPI {
             lastRotatedSuffix: this.lastRotatedSuffix,
             lastPersistedSuffix: this.lastPersistedSuffix,
             lastPersistedAt: this.lastPersistedAt ? new Date(this.lastPersistedAt).toISOString() : undefined,
+            familyStartedAt: this.config.familyStartedAt,
+            familyAgeDays: this.familyAgeDays(),
         };
+    }
+    /**
+     * Age of the current token family in days (2 decimals), or undefined when its
+     * start was never recorded.
+     */
+    familyAgeDays() {
+        if (!this.config.familyStartedAt) {
+            return undefined;
+        }
+        const startedAt = Date.parse(this.config.familyStartedAt);
+        if (Number.isNaN(startedAt)) {
+            return undefined;
+        }
+        return Math.round(((Date.now() - startedAt) / 86400000) * 100) / 100;
     }
     /**
      * Check if access token is expired or about to expire

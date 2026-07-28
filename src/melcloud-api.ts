@@ -8,6 +8,8 @@ export interface MELCloudConfig {
   debugLog?: (message: string) => void;
   warnLog?: (message: string) => void;
   auditLog?: AuthAuditLog;
+  /** ISO timestamp of the `family_start` anchor for the token family in use, if known. */
+  familyStartedAt?: string;
 }
 
 export interface DeviceSetting {
@@ -120,6 +122,10 @@ export class MELCloudAPI {
    * single log line is enough to tell whose side the failure is on: whether the
    * rejected token is the one we last persisted (MELCloud rejecting a valid
    * token) or a stale/never-saved one (our side / the UI never saved a login).
+   *
+   * `familyAgeDays` closes the loop on the other half of the diagnosis: how long
+   * this token family survived before it was revoked, without having to correlate
+   * the failure against a login you have to remember.
    */
   private failureContext(usedTokenSuffix: string) {
     return {
@@ -127,7 +133,24 @@ export class MELCloudAPI {
       lastRotatedSuffix: this.lastRotatedSuffix,
       lastPersistedSuffix: this.lastPersistedSuffix,
       lastPersistedAt: this.lastPersistedAt ? new Date(this.lastPersistedAt).toISOString() : undefined,
+      familyStartedAt: this.config.familyStartedAt,
+      familyAgeDays: this.familyAgeDays(),
     };
+  }
+
+  /**
+   * Age of the current token family in days (2 decimals), or undefined when its
+   * start was never recorded.
+   */
+  private familyAgeDays(): number | undefined {
+    if (!this.config.familyStartedAt) {
+      return undefined;
+    }
+    const startedAt = Date.parse(this.config.familyStartedAt);
+    if (Number.isNaN(startedAt)) {
+      return undefined;
+    }
+    return Math.round(((Date.now() - startedAt) / 86400000) * 100) / 100;
   }
 
   /**

@@ -10,7 +10,7 @@ import type {
 import { Categories } from 'homebridge';
 import path from 'node:path';
 import { MELCloudAccessory } from './accessory';
-import { AuthAuditLog } from './auth-audit-log';
+import { AuthAuditLog, maskToken } from './auth-audit-log';
 import { ConfigManager } from './config-manager';
 import { FanSpeedButton } from './fan-speed-button';
 import { type AirToAirUnit, MELCloudAPI } from './melcloud-api';
@@ -81,6 +81,33 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   }
 
   /**
+   * When did the refresh-token family currently in config.json come into being?
+   *
+   * Refresh tokens rotate every ~55 minutes, so the token in config says nothing
+   * about the age of the grant behind it — only the browser login that created it
+   * does, and that is written by the custom UI as a `family_start` entry. Reading
+   * it here lets a later `invalid_grant` record how long the family lived.
+   *
+   * With no anchor in the log — plugin upgraded mid-family, or a token pasted in
+   * by hand — bootstrap one now. That timestamp is a lower bound, not a login, so
+   * it is tagged `plugin-start` to keep the two apart when reading the log.
+   */
+  private async resolveFamilyStart(refreshToken: string): Promise<string | undefined> {
+    const existing = await this.authAuditLog.readLastFamilyStart();
+    if (existing) {
+      return existing.ts;
+    }
+
+    const ts = new Date().toISOString();
+    await this.authAuditLog.write({
+      event: 'family_start',
+      tokenSuffix: maskToken(refreshToken),
+      source: 'plugin-start',
+    });
+    return ts;
+  }
+
+  /**
    * Initialize authentication - uses OAuth refresh token from Homebridge UI
    */
   private async initializeAuthentication() {
@@ -94,6 +121,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
         this.melcloudAPI = new MELCloudAPI({
           refreshToken: this.config.refreshToken,
           debug: this.config.debug || false,
+          familyStartedAt: await this.resolveFamilyStart(this.config.refreshToken),
           onTokenRefresh: async (newRefreshToken: string) => {
             // Save the new refresh token to config when it rotates
             this.debugLog('Refresh token rotated by MELCloud API');

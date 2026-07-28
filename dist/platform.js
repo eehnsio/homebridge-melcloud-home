@@ -61,6 +61,31 @@ class MELCloudHomePlatform {
         }
     }
     /**
+     * When did the refresh-token family currently in config.json come into being?
+     *
+     * Refresh tokens rotate every ~55 minutes, so the token in config says nothing
+     * about the age of the grant behind it — only the browser login that created it
+     * does, and that is written by the custom UI as a `family_start` entry. Reading
+     * it here lets a later `invalid_grant` record how long the family lived.
+     *
+     * With no anchor in the log — plugin upgraded mid-family, or a token pasted in
+     * by hand — bootstrap one now. That timestamp is a lower bound, not a login, so
+     * it is tagged `plugin-start` to keep the two apart when reading the log.
+     */
+    async resolveFamilyStart(refreshToken) {
+        const existing = await this.authAuditLog.readLastFamilyStart();
+        if (existing) {
+            return existing.ts;
+        }
+        const ts = new Date().toISOString();
+        await this.authAuditLog.write({
+            event: 'family_start',
+            tokenSuffix: (0, auth_audit_log_1.maskToken)(refreshToken),
+            source: 'plugin-start',
+        });
+        return ts;
+    }
+    /**
      * Initialize authentication - uses OAuth refresh token from Homebridge UI
      */
     async initializeAuthentication() {
@@ -72,6 +97,7 @@ class MELCloudHomePlatform {
                 this.melcloudAPI = new melcloud_api_1.MELCloudAPI({
                     refreshToken: this.config.refreshToken,
                     debug: this.config.debug || false,
+                    familyStartedAt: await this.resolveFamilyStart(this.config.refreshToken),
                     onTokenRefresh: async (newRefreshToken) => {
                         // Save the new refresh token to config when it rotates
                         this.debugLog('Refresh token rotated by MELCloud API');

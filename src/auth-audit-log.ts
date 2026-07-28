@@ -12,11 +12,22 @@ import fs from 'node:fs';
  * rejected a token we actually persisted (their side) or we sent a stale /
  * never-saved token (our side, e.g. the UI never saved the login).
  *
+ * The one non-failure event is `family_start`: a single line marking the birth
+ * of a refresh-token family (a browser login). Rotation is continuous, so
+ * without that anchor there is no way to say how long a family survived before
+ * MELCloud revoked it — and the interval between logins and deaths is the only
+ * handle we have on the intermittent `invalid_grant`.
+ *
  * Only the last 8 characters of any token are ever recorded — never the token
  * itself, and never the password.
  */
 
-export type AuthAuditEvent = 'refresh_failure' | 'persist_failure' | 'circuit_breaker_paused' | 'connection_restored';
+export type AuthAuditEvent =
+  | 'family_start'
+  | 'refresh_failure'
+  | 'persist_failure'
+  | 'circuit_breaker_paused'
+  | 'connection_restored';
 
 export interface AuthAuditEntry {
   event: AuthAuditEvent;
@@ -31,6 +42,14 @@ export interface AuthAuditEntry {
   lastRotatedSuffix?: string;
   lastPersistedSuffix?: string;
   lastPersistedAt?: string;
+  familyStartedAt?: string;
+  familyAgeDays?: number;
+}
+
+export interface FamilyStart {
+  ts: string;
+  tokenSuffix?: string;
+  source?: string;
 }
 
 export function maskToken(token: string | undefined | null): string {
@@ -78,5 +97,41 @@ export class AuthAuditLog {
     } catch {
       // Audit logging must never break auth — silently drop on write errors.
     }
+  }
+
+  /**
+   * Most recent `family_start`, i.e. when the refresh-token family currently in
+   * use was created. Written by the custom UI at login (the plugin only sees the
+   * new token after the user saves and restarts), so it has to be read back from
+   * the file rather than kept in memory.
+   *
+   * Returns undefined when there is no anchor yet — a missing/unreadable log, or
+   * a family that predates this bookkeeping. Never throws: a lost anchor costs a
+   * diagnostic field, and must not cost authentication.
+   */
+  async readLastFamilyStart(): Promise<FamilyStart | undefined> {
+    if (!this.enabled) {
+      return undefined;
+    }
+
+    try {
+      const lines = (await fs.promises.readFile(this.filePath, 'utf8')).split('\n');
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (!lines[i].includes('"family_start"')) {
+          continue;
+        }
+        try {
+          const entry = JSON.parse(lines[i]);
+          if (entry?.event === 'family_start' && typeof entry.ts === 'string') {
+            return { ts: entry.ts, tokenSuffix: entry.tokenSuffix, source: entry.source };
+          }
+        } catch {
+          // Half-written line (append is not atomic) — keep scanning backwards.
+        }
+      }
+    } catch {
+      // No log yet, or unreadable — caller falls back to bootstrapping an anchor.
+    }
+    return undefined;
   }
 }

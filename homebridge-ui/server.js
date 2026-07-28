@@ -40,6 +40,64 @@ class PluginUiServer extends HomebridgePluginUiServer {
   }
 
   /**
+   * Mark the birth of a refresh-token family in the auth audit log.
+   *
+   * A browser login is the only moment a new family is created; from then on the
+   * token rotates every ~55 minutes and its value says nothing about the age of
+   * the grant behind it. MELCloud revokes families server-side at unpredictable
+   * intervals (`invalid_grant` on a token we just persisted), and this line is
+   * what lets the plugin state how long the dead family had lived.
+   *
+   * Written here rather than in the plugin because the plugin does not see the
+   * new token until the user saves it and restarts Homebridge. Consequence: a
+   * login the user abandons without saving still writes an anchor, which would
+   * understate the age of the family that is actually still running. Visible in
+   * the log as two `family_start` lines close together.
+   */
+  async recordFamilyStart(refreshToken) {
+    try {
+      const storagePath = this.homebridgeStoragePath;
+      if (!storagePath || !refreshToken) {
+        return;
+      }
+      if (!(await this.isAuditLogEnabled(storagePath))) {
+        return;
+      }
+      const entry = {
+        ts: new Date().toISOString(),
+        event: 'family_start',
+        tokenSuffix: `...${refreshToken.slice(-8)}`,
+        source: 'oauth-ui',
+      };
+      await fs.promises.appendFile(
+        path.join(storagePath, 'melcloud-auth-audit.log'),
+        `${JSON.stringify(entry)}\n`,
+        'utf8',
+      );
+      console.log('[MELCloudHome UI] Recorded family_start for token', entry.tokenSuffix);
+    } catch (error) {
+      // Bookkeeping must never break a successful login.
+      console.error('[MELCloudHome UI] Failed to record family_start:', error.message);
+    }
+  }
+
+  /**
+   * Honour the `authAuditLog: false` opt-out from the UI process, which has no
+   * access to the running plugin's config. Unreadable config → assume the
+   * default (on), matching the plugin.
+   */
+  async isAuditLogEnabled(storagePath) {
+    try {
+      const raw = await fs.promises.readFile(path.join(storagePath, 'config.json'), 'utf8');
+      const platforms = JSON.parse(raw).platforms || [];
+      const entry = platforms.find((p) => p && p.platform === 'MELCloudHome');
+      return !entry || entry.authAuditLog !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
    * Login with email/password and automatically obtain OAuth token
    * Uses the proven bash script approach
    */
@@ -57,6 +115,8 @@ class PluginUiServer extends HomebridgePluginUiServer {
       // Use the automated curl approach (proven to work)
       const tokens = await this.getTokensViaCurl(email, password);
       console.log('[MELCloudHome UI] OAuth tokens obtained successfully');
+
+      await this.recordFamilyStart(tokens.refreshToken);
 
       const result = {
         success: true,
