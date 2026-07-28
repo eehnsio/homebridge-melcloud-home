@@ -21,16 +21,12 @@ Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridg
 
 ## Features
 
-- Power on/off
-- Temperature control (including 0.5° increments)
-- Mode switching (Heat, Cool, Auto)
-- Fan speed control (Auto + 5 speed levels)
-- **Swing control** (optional) - exposed as a switch, because iOS HomeKit does not render a native swing control on the AC tile
-- Real-time temperature monitoring
+- Power, temperature (0.5° steps) and mode (Heat, Cool, Auto)
+- Fan speed (Auto + 5 levels)
 - Automatic device discovery
-- **Fan speed buttons** (optional) - fan speeds as separate HomeKit switches
-- **Stays signed in** (optional) - signs itself back in when MELCloud revokes the login
-- **Lightweight** - no browser dependencies, no polling delays
+- Temperature sensor per unit, for automations (optional)
+- Fan speed and swing as separate switches (optional)
+- Stays signed in when MELCloud drops the login (optional)
 - Homebridge v1 & v2 compatible
 
 ## Important: MELCloud vs MELCloud Home
@@ -41,17 +37,8 @@ Not sure which one you have? Check which website you log into - if it's melcloud
 
 ## Installation
 
-### Via Homebridge UI
-
-1. Search for `homebridge-melcloud-home` in the Homebridge plugins tab
-2. Click Install
-3. Click Settings (gear icon) after installation
-4. Enter your MELCloud email and password in Step 1
-5. Click "Login and Get Token" - your token will be obtained automatically
-6. Click "Save Token" in Step 2
-7. Restart Homebridge
-
-### Via npm
+Search for `homebridge-melcloud-home` in the Homebridge plugins tab and click Install,
+or install it from the command line:
 
 ```bash
 npm install -g homebridge-melcloud-home
@@ -59,45 +46,27 @@ npm install -g homebridge-melcloud-home
 
 ## Setup
 
-1. Install the plugin via Homebridge UI
-2. Click the **Settings** button (⚙️)
-3. **Step 1:** Enter your MELCloud email and password, then click "Login and Get Token"
-4. **Step 2:** Your token will appear automatically - click "Save Token"
-5. **Step 3:** Configure settings (refresh interval, debug mode, etc.) - they save automatically
-6. Restart Homebridge
+1. Click the plugin's **Settings** button (⚙️)
+2. Enter your MELCloud email and password, then click "Login and Get Token"
+3. Click "Save Token" when it appears
+4. Adjust the settings below if you want — they save automatically
+5. Restart Homebridge
 
-Your devices will appear in HomeKit automatically!
+Your devices appear in HomeKit automatically.
 
 ### Authentication
 
-The plugin signs in with OAuth and then keeps a refresh token, which it exchanges for a
-new one roughly every 55 minutes. Your password is not needed for that, and is not stored
-unless you ask for it (see below).
+You sign in once with your MELCloud account and the plugin keeps a token from then on.
+Your password is not stored unless you opt in.
 
-**MELCloud sometimes revokes a login.** Every few weeks it rejects a refresh token it
-issued itself less than an hour earlier (`invalid_grant`). There is no fixed interval —
-measured lifetimes so far are ~18 days, ~22 days, and one login still healthy after 24.
-The plugin sends the correct, freshly saved token in every case, so this is not something
-it can prevent. When it happens your ACs show as "Not Responding" until you sign in again.
+Every few weeks MELCloud revokes the login, for reasons outside the plugin's control. Your
+ACs then show as "Not Responding" until you sign in again — unless you enable **"Stay
+signed in"**, which saves your email and password on your Homebridge server, encrypted and
+outside `config.json`, so the plugin can sign back in by itself. It is off by default, and
+unticking it deletes them.
 
-**"Stay signed in" (optional, off by default)** exists because of that. Tick it next to the
-login form and your MELCloud email and password are saved on your Homebridge server,
-encrypted, so the plugin can sign back in by itself instead of waiting for you. Unticking
-it deletes them.
-
-What the encryption does and does not do, plainly:
-
-- The credentials are stored **outside `config.json`** — that file ends up in screenshots
-  and pasted into GitHub issues.
-- Encrypted with AES-256-GCM, files readable only by the Homebridge user, and where the
-  system provides a machine id the key is tied to it — so a copied or restored backup
-  cannot be decrypted on another machine. (Restoring onto a *new* machine means signing
-  in once by hand.)
-- It is **not** protection against someone who already has access to your Homebridge
-  server. The plugin must be able to decrypt unattended in order to sign in for you.
-
-If you leave it off, nothing changes: you sign in again from the settings page when
-prompted, exactly as before.
+It is not protection against someone who already has access to your server: the plugin has
+to be able to decrypt unattended in order to sign in for you.
 
 ### Configuration
 
@@ -105,15 +74,14 @@ All settings can be configured through the custom UI - click the Settings (⚙�
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `refreshInterval` | How often to check device status (seconds). With 30-second polling, changes from the MELCloud app or remote control are picked up quickly. Configurable from 10-3600 seconds. | 30 |
-| `debug` | Enable detailed logging for troubleshooting. Shows all refresh data, API calls, and state changes without requiring Homebridge debug mode. | false |
-| `exposeTemperatureSensor` | Add a separate temperature sensor for each AC unit that can be used in HomeKit automations. | true |
-| `fanSpeedButtons` | Expose fan speeds as separate HomeKit switches: `none`, `simple` (Auto/Quiet/Max) or `all` (Auto, 1-5). | `none` |
-| `vaneControl` | Swing control: `none`, or `buttons` for a single switch (ON = swing, OFF = auto). iOS has no native swing control on the AC tile. | `none` |
-| `authAuditLog` | Record failed logins to `melcloud-auth-audit.log` in the Homebridge storage folder, so intermittent connection problems can be diagnosed. Only the last 8 characters of tokens are written — never a token itself, and never your password. | true |
+| `refreshInterval` | How often to poll for device changes, 10-3600 seconds. | 30 |
+| `debug` | Detailed logging for troubleshooting. | false |
+| `exposeTemperatureSensor` | A separate temperature sensor per unit, for automations. | true |
+| `fanSpeedButtons` | Fan speeds as switches: `none`, `simple` (Auto/Quiet/Max) or `all` (Auto, 1-5). | `none` |
+| `vaneControl` | Swing as a switch: `none` or `buttons`. | `none` |
+| `authAuditLog` | Records failed logins to a file so connection problems can be diagnosed. | true |
 
-"Stay signed in" is not a config key — it is set from the settings page, and the saved
-credentials live outside `config.json` by design.
+"Stay signed in" has no config key — it lives on the settings page, deliberately outside `config.json`.
 
 ## Changelog
 
