@@ -7,6 +7,9 @@
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
+    // The proven OAuth login flow (src/oauth-login.js) stays plain JS so it ships
+    // to dist/ unchanged and both the plugin and homebridge-ui can require it.
+    "allowJs": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
