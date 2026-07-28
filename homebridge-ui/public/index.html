@@ -4,6 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MELCloud Home - Setup</title>
+    <style>
+        /* Bootstrap's .text-muted resolves to a grey that is nearly invisible against
+           Homebridge's dark theme. Inheriting the theme's own text colour and dimming
+           it keeps help text legible in both light and dark without hardcoding either. */
+        #app .text-muted {
+            color: inherit !important;
+            opacity: 0.75;
+        }
+        /* Help text is inline by default, so a following button gets pulled into the
+           middle of the wrapped paragraph. */
+        #app .form-check small,
+        #app .form-check .btn {
+            display: block;
+        }
+        #app details > summary {
+            cursor: pointer;
+            user-select: none;
+        }
+    </style>
 </head>
 <body>
     <div class="container-fluid p-4">
@@ -37,12 +56,30 @@
                             placeholder="Your MELCloud password"
                         >
                     </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="stay-signed-in">
+                        <label class="form-check-label" for="stay-signed-in">
+                            Stay signed in
+                        </label>
+                        <div>
+                            <small class="text-muted">
+                                MELCloud revokes the login every few weeks, at no fixed interval. This saves
+                                your password here, encrypted, so the plugin can sign back in by itself
+                                instead of your ACs going "Not Responding" until you return and press Login.
+                                <br>
+                                Encryption keeps the password out of screenshots, shared config files and
+                                backups. It is <strong>not</strong> protection against someone who already
+                                has access to this server — the plugin must be able to decrypt it unattended.
+                            </small>
+                        </div>
+                    </div>
                     <button type="button" id="direct-login-button" class="btn btn-success w-100 mb-2">
                         Login and Get Token
                     </button>
                     <div id="direct-login-result"></div>
                     <small class="text-muted d-block mt-2">
-                        Your credentials are sent directly to MELCloud's servers and are not stored.
+                        Your credentials are sent directly to MELCloud's servers. They are only stored
+                        if you tick "Stay signed in" above.
                     </small>
                 </div>
             </div>
@@ -94,52 +131,6 @@
                         <input
                             class="form-check-input"
                             type="checkbox"
-                            id="debug-mode"
-                        >
-                        <label class="form-check-label" for="debug-mode">
-                            Debug Mode
-                        </label>
-                        <div>
-                            <small class="text-muted">
-                                Enable detailed logging for troubleshooting
-                            </small>
-                        </div>
-                    </div>
-
-                    <div class="form-check form-switch mb-3">
-                        <input
-                            class="form-check-input"
-                            type="checkbox"
-                            id="auth-audit-log"
-                            checked
-                        >
-                        <label class="form-check-label" for="auth-audit-log">
-                            Auth Audit Log
-                        </label>
-                        <div>
-                            <small class="text-muted">
-                                Records OAuth token-refresh <strong>failures</strong> to
-                                <code>melcloud-auth-audit.log</code> in your Homebridge storage folder,
-                                plus a one-line marker each time you log in here
-                                (only the last 8 characters of tokens — never the token itself or your
-                                password). Successful refreshes aren't logged, so the file stays tiny.
-                                The login markers are what let a failure tell you how many days the
-                                token lasted before MELCloud revoked it.
-                                It's on by default because token-refresh failures are intermittent and
-                                unpredictable — without this log there's usually no way to diagnose ACs
-                                going "Not Responding" due to <code>invalid_grant</code>. Safe to turn off.
-                            </small>
-                            <button type="button" id="clear-auth-log-button" class="btn btn-outline-secondary btn-sm mt-2">
-                                Clear Auth Log
-                            </button>
-                            <div id="clear-auth-log-result"></div>
-                        </div>
-                    </div>
-
-                    <div class="form-check form-switch mb-3">
-                        <input
-                            class="form-check-input"
-                            type="checkbox"
                             id="expose-temperature-sensor"
                             checked
                         >
@@ -148,7 +139,7 @@
                         </label>
                         <div>
                             <small class="text-muted">
-                                Add a separate temperature sensor for each AC unit
+                                Adds a separate temperature sensor for each AC unit.
                             </small>
                         </div>
                     </div>
@@ -163,7 +154,7 @@
                             <option value="all">All speeds (Auto, 1-5)</option>
                         </select>
                         <small class="text-muted">
-                            Create separate switch buttons for fan speed control with clear labels
+                            Adds switches for setting fan speed.
                         </small>
                     </div>
 
@@ -176,17 +167,56 @@
                             <option value="buttons">Swing switch — ON = swing, OFF = auto</option>
                         </select>
                         <small class="text-muted">
-                            iOS HomeKit's AC tile has no native swing control. 'Swing switch' adds a single switch to the AC accessory: ON sets vane to Swing, OFF returns to Auto. Manual positions 1-5: use the IR remote.
+                            iOS has no swing control on the AC tile, so this adds a switch instead.
                         </small>
                     </div>
 
                     <div class="alert alert-warning">
-                        <strong>Note:</strong> Changing button settings will remove/add accessories. You may need to re-assign rooms in the Home app after restart.
+                        <strong>Note:</strong> Changing the two settings above adds or removes accessories. You may need to re-assign rooms in the Home app afterwards.
                     </div>
 
-                    <div class="alert alert-info">
-                        <strong>Note:</strong> Settings are saved automatically. Restart Homebridge for changes to take effect.
+                    <hr class="my-4">
+
+                    <div class="form-check form-switch mb-3">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            id="debug-mode"
+                        >
+                        <label class="form-check-label" for="debug-mode">
+                            Debug Mode
+                        </label>
+                        <div>
+                            <small class="text-muted">
+                                Detailed logging for troubleshooting.
+                            </small>
+                        </div>
                     </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            id="auth-audit-log"
+                            checked
+                        >
+                        <label class="form-check-label" for="auth-audit-log">
+                            Auth Audit Log
+                        </label>
+                        <small class="text-muted">
+                            Records failed logins to <code>melcloud-auth-audit.log</code> so connection
+                            problems can be diagnosed. Never stores a token or your password.
+                        </small>
+                        <button type="button" id="clear-auth-log-button" class="btn btn-outline-secondary btn-sm mt-2">
+                            Clear Auth Log
+                        </button>
+                        <div id="clear-auth-log-result"></div>
+                    </div>
+
+                    <small class="text-muted d-block mt-4">
+                        Settings save automatically. Restart Homebridge for changes to take effect.
+                    </small>
+
                 </div>
             </div>
         </div>
@@ -220,6 +250,31 @@
 
             // Load current settings
             await loadSettings();
+
+            // "Stay signed in" must show what is actually stored, not a default —
+            // credentials live outside config.json so loadSettings() can't see them.
+            const stayCheckbox = document.getElementById('stay-signed-in');
+            try {
+                const status = await window.homebridge.request('/credentials-status', {});
+                stayCheckbox.checked = !!(status && status.saved);
+            } catch (error) {
+                console.error('[UI] Could not read credential status:', error);
+            }
+
+            // Unticking deletes the stored credentials right away — the switch has to
+            // mean what it says, not just stop them being used at some later point.
+            stayCheckbox.addEventListener('change', async () => {
+                if (stayCheckbox.checked) {
+                    return; // Saving needs the password, which we only have at login time.
+                }
+                try {
+                    await window.homebridge.request('/clear-credentials', {});
+                    window.homebridge.toast.success('Saved credentials deleted.');
+                } catch (error) {
+                    console.error('[UI] Could not clear credentials:', error);
+                    window.homebridge.toast.error('Could not delete the saved credentials.');
+                }
+            });
 
             // Step 1: Direct Login event listener
             document.getElementById('direct-login-button').addEventListener('click', async () => {
@@ -267,7 +322,25 @@
                     if (response && response.success && response.refreshToken) {
                         // Auto-fill the token in Step 2
                         document.getElementById('token-input').value = response.refreshToken;
-                        resultDiv.innerHTML = '<div class="alert alert-success">✓ Login successful! Token obtained. See Step 2 below.</div>';
+
+                        // Persist (or delete) the credentials before the password field is
+                        // cleared below — this is the only moment we hold the password.
+                        let stayNote = '';
+                        try {
+                            if (document.getElementById('stay-signed-in').checked) {
+                                const saved = await window.homebridge.request('/save-credentials', { email, password });
+                                stayNote = saved && saved.success
+                                    ? ' Credentials saved (encrypted) — the plugin can now sign in again by itself.'
+                                    : ' Note: credentials could not be saved, automatic re-login is off.';
+                            } else {
+                                await window.homebridge.request('/clear-credentials', {});
+                            }
+                        } catch (credError) {
+                            console.error('[UI] Credential storage error:', credError);
+                            stayNote = ' Note: credentials could not be saved, automatic re-login is off.';
+                        }
+
+                        resultDiv.innerHTML = '<div class="alert alert-success">✓ Login successful! Token obtained. See Step 2 below.' + stayNote + '</div>';
                         // Clear password field for security
                         document.getElementById('password-input').value = '';
                         // Scroll to Step 2
@@ -360,10 +433,32 @@
                 button.innerHTML = 'Save Token';
             });
 
-            // Clear auth log button
+            // Clear auth log button. Two-step on purpose: this throws away the only
+            // record of how long each login survived, and there is no undo. A single
+            // click sitting next to an ordinary switch is far too easy to hit by
+            // accident (it has been). window.confirm() is unreliable inside the
+            // Homebridge UI iframe, so the button asks with itself.
+            let clearArmed = false;
+            let clearDisarmTimer;
             document.getElementById('clear-auth-log-button').addEventListener('click', async () => {
                 const button = document.getElementById('clear-auth-log-button');
                 const resultDiv = document.getElementById('clear-auth-log-result');
+
+                if (!clearArmed) {
+                    clearArmed = true;
+                    button.classList.replace('btn-outline-secondary', 'btn-outline-danger');
+                    button.innerHTML = 'Click again to delete the log';
+                    clearDisarmTimer = setTimeout(() => {
+                        clearArmed = false;
+                        button.classList.replace('btn-outline-danger', 'btn-outline-secondary');
+                        button.innerHTML = 'Clear Auth Log';
+                    }, 5000);
+                    return;
+                }
+
+                clearTimeout(clearDisarmTimer);
+                clearArmed = false;
+                button.classList.replace('btn-outline-danger', 'btn-outline-secondary');
                 button.disabled = true;
                 button.innerHTML = 'Clearing...';
                 try {
