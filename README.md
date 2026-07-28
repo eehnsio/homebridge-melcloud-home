@@ -25,12 +25,12 @@ Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridg
 - Temperature control (including 0.5° increments)
 - Mode switching (Heat, Cool, Auto)
 - Fan speed control (Auto + 5 speed levels)
-- **Swing mode control** - oscillate vanes with native HomeKit toggle
+- **Swing control** (optional) - exposed as a switch, because iOS HomeKit does not render a native swing control on the AC tile
 - Real-time temperature monitoring
 - Automatic device discovery
-- **Separate fan speed tile** (optional) - quick access to fan speed as separate HomeKit accessory
-- **Long-lived sessions** - authenticate once, automatic token refresh keeps you connected
-- **Lightweight & always responsive** - no browser dependencies or periodic re-authentication delays
+- **Fan speed buttons** (optional) - fan speeds as separate HomeKit switches
+- **Stays signed in** (optional) - signs itself back in when MELCloud revokes the login
+- **Lightweight** - no browser dependencies, no polling delays
 - Homebridge v1 & v2 compatible
 
 ## Important: MELCloud vs MELCloud Home
@@ -70,11 +70,34 @@ Your devices will appear in HomeKit automatically!
 
 ### Authentication
 
-The plugin uses OAuth for secure authentication:
-- Your credentials are sent directly to MELCloud's servers (never stored by the plugin)
-- A refresh token is saved in your Homebridge config
-- The token is automatically refreshed when needed (no re-authentication required)
-- Works in all browsers (Safari, Chrome, Firefox, Edge)
+The plugin signs in with OAuth and then keeps a refresh token, which it exchanges for a
+new one roughly every 55 minutes. Your password is not needed for that, and is not stored
+unless you ask for it (see below).
+
+**MELCloud sometimes revokes a login.** Every few weeks it rejects a refresh token it
+issued itself less than an hour earlier (`invalid_grant`). There is no fixed interval —
+measured lifetimes so far are ~18 days, ~22 days, and one login still healthy after 24.
+The plugin sends the correct, freshly saved token in every case, so this is not something
+it can prevent. When it happens your ACs show as "Not Responding" until you sign in again.
+
+**"Stay signed in" (optional, off by default)** exists because of that. Tick it next to the
+login form and your MELCloud email and password are saved on your Homebridge server,
+encrypted, so the plugin can sign back in by itself instead of waiting for you. Unticking
+it deletes them.
+
+What the encryption does and does not do, plainly:
+
+- The credentials are stored **outside `config.json`** — that file ends up in screenshots
+  and pasted into GitHub issues.
+- Encrypted with AES-256-GCM, files readable only by the Homebridge user, and where the
+  system provides a machine id the key is tied to it — so a copied or restored backup
+  cannot be decrypted on another machine. (Restoring onto a *new* machine means signing
+  in once by hand.)
+- It is **not** protection against someone who already has access to your Homebridge
+  server. The plugin must be able to decrypt unattended in order to sign in for you.
+
+If you leave it off, nothing changes: you sign in again from the settings page when
+prompted, exactly as before.
 
 ### Configuration
 
@@ -85,8 +108,12 @@ All settings can be configured through the custom UI - click the Settings (⚙�
 | `refreshInterval` | How often to check device status (seconds). With 30-second polling, changes from the MELCloud app or remote control are picked up quickly. Configurable from 10-3600 seconds. | 30 |
 | `debug` | Enable detailed logging for troubleshooting. Shows all refresh data, API calls, and state changes without requiring Homebridge debug mode. | false |
 | `exposeTemperatureSensor` | Add a separate temperature sensor for each AC unit that can be used in HomeKit automations. | true |
-| `exposeSwingMode` | Show swing toggle in HomeKit for vane oscillation. When enabled, both horizontal and vertical vanes will oscillate. Requires device support. | true |
-| `exposeFanSpeedAccessory` | Show fan speed as a separate Fan tile in HomeKit. Useful for quick access to fan speed control. | false |
+| `fanSpeedButtons` | Expose fan speeds as separate HomeKit switches: `none`, `simple` (Auto/Quiet/Max) or `all` (Auto, 1-5). | `none` |
+| `vaneControl` | Swing control: `none`, or `buttons` for a single switch (ON = swing, OFF = auto). iOS has no native swing control on the AC tile. | `none` |
+| `authAuditLog` | Record failed logins to `melcloud-auth-audit.log` in the Homebridge storage folder, so intermittent connection problems can be diagnosed. Only the last 8 characters of tokens are written — never a token itself, and never your password. | true |
+
+"Stay signed in" is not a config key — it is set from the settings page, and the saved
+credentials live outside `config.json` by design.
 
 ## Changelog
 
