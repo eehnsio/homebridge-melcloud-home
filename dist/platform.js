@@ -8,8 +8,10 @@ const node_path_1 = __importDefault(require("node:path"));
 const accessory_1 = require("./accessory");
 const auth_audit_log_1 = require("./auth-audit-log");
 const config_manager_1 = require("./config-manager");
+const credential_store_1 = require("./credential-store");
 const fan_speed_button_1 = require("./fan-speed-button");
 const melcloud_api_1 = require("./melcloud-api");
+const oauth_login_1 = require("./oauth-login");
 const settings_1 = require("./settings");
 const vane_button_1 = require("./vane-button");
 class MELCloudHomePlatform {
@@ -24,6 +26,9 @@ class MELCloudHomePlatform {
         this.fanButtonInstances = new Map();
         this.vaneButtonInstances = new Map();
         this.consecutiveAuthFailures = 0;
+        // One automatic sign-in per dead token family, cleared once a refresh succeeds.
+        this.autoReauthAttempted = false;
+        this.lastAutoReauthAt = 0;
         this.log.debug('Finished initializing platform:', this.config.name);
         // Initialize config manager for token persistence
         this.configManager = new config_manager_1.ConfigManager(this.log, this.api.user.storagePath());
@@ -31,6 +36,10 @@ class MELCloudHomePlatform {
         // recording only failures/recovery (not routine successes) with self-contained
         // token context. On by default; opt out with `authAuditLog: false`.
         this.authAuditLog = new auth_audit_log_1.AuthAuditLog(node_path_1.default.join(this.api.user.storagePath(), 'melcloud-auth-audit.log'), this.config.authAuditLog !== false);
+        // Optional, opt-in: encrypted email/password so the plugin can sign in again
+        // by itself when MELCloud revokes the token family. Written by the custom UI's
+        // "Stay signed in" checkbox; absent unless the user asked for it.
+        this.credentialStore = new credential_store_1.CredentialStore(this.api.user.storagePath(), (msg) => this.log.warn(msg));
         this.api.on('didFinishLaunching', async () => {
             try {
                 this.debugLog('Homebridge finished launching...');
@@ -84,6 +93,65 @@ class MELCloudHomePlatform {
             source: 'plugin-start',
         });
         return ts;
+    }
+    /**
+     * Sign in again with saved credentials after MELCloud revoked the token family.
+     *
+     * MELCloud rejects a refresh token it issued itself every few weeks, at no
+     * fixed interval (measured: 18.5 d, ~22.4 d, and one family still healthy at
+     * 23.6 d). Nothing here can prevent that, so when the user has opted in to
+     * saving their credentials the honest response is to mint a new family and
+     * carry on rather than go "Not Responding" until they notice.
+     *
+     * Deliberately narrow. It fires only on a rejected *refresh token* — the exact
+     * failure that kills a family — never on 401/403 from an expired access token
+     * (already retried internally) and never on a 5xx or timeout, where signing in
+     * repeatedly during a MELCloud outage would be the worst possible behaviour.
+     * One attempt per dead family, plus a cooldown: a wrong password must never
+     * become a login loop against Cognito.
+     */
+    async tryAutoReauth(message) {
+        if (!/^Token refresh failed: HTTP 400$/.test(message)) {
+            return false;
+        }
+        if (this.autoReauthAttempted) {
+            return false;
+        }
+        const sinceLast = Date.now() - this.lastAutoReauthAt;
+        if (sinceLast < MELCloudHomePlatform.AUTO_REAUTH_COOLDOWN_MS) {
+            this.debugLog(`Skipping automatic sign-in, cooling down (${Math.round(sinceLast / 1000)}s since last attempt)`);
+            return false;
+        }
+        const credentials = await this.credentialStore.load();
+        if (!credentials) {
+            return false;
+        }
+        this.autoReauthAttempted = true;
+        this.lastAutoReauthAt = Date.now();
+        this.log.warn('MELCloud rejected the refresh token. Signing in again with your saved credentials...');
+        try {
+            // Only the first argument of each progress line is forwarded: the flow logs
+            // whole request headers, session cookies included, and those must never
+            // reach homebridge.log — users paste it into GitHub issues.
+            const tokens = await (0, oauth_login_1.loginWithPassword)(credentials.email, credentials.password, (...args) => this.debugLog(String(args[0]).slice(0, 200)));
+            await this.configManager.saveRefreshToken(tokens.refreshToken);
+            const familyStartedAt = new Date().toISOString();
+            this.getAPI().adoptTokens(tokens, familyStartedAt);
+            void this.authAuditLog.write({
+                event: 'family_start',
+                tokenSuffix: (0, auth_audit_log_1.maskToken)(tokens.refreshToken),
+                source: 'auto-reauth',
+            });
+            this.log.info('Signed in again automatically. Devices are back online — no restart needed.');
+            return true;
+        }
+        catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            this.log.error(`Automatic sign-in failed: ${reason}`);
+            this.log.error('Saved credentials may be out of date — log in again via the Homebridge UI to replace them.');
+            void this.authAuditLog.write({ event: 'refresh_failure', errorMessage: `auto-reauth failed: ${reason}` });
+            return false;
+        }
     }
     /**
      * Initialize authentication - uses OAuth refresh token from Homebridge UI
@@ -322,11 +390,17 @@ class MELCloudHomePlatform {
                         void this.authAuditLog.write({ event: 'connection_restored' });
                     }
                     this.consecutiveAuthFailures = 0;
+                    this.autoReauthAttempted = false;
                 }
                 catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
                     const isAuthError = /HTTP (400|401|403)/.test(message);
                     if (isAuthError) {
+                        if (await this.tryAutoReauth(message)) {
+                            this.consecutiveAuthFailures = 0;
+                            scheduleNext();
+                            return;
+                        }
                         this.consecutiveAuthFailures++;
                         if (this.consecutiveAuthFailures === 1) {
                             this.log.error('Authentication failed:', message);
@@ -481,4 +555,5 @@ class MELCloudHomePlatform {
     }
 }
 exports.MELCloudHomePlatform = MELCloudHomePlatform;
+MELCloudHomePlatform.AUTO_REAUTH_COOLDOWN_MS = 15 * 60 * 1000;
 //# sourceMappingURL=platform.js.map

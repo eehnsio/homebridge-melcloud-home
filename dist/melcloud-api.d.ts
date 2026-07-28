@@ -104,6 +104,16 @@ export declare class MELCloudAPI {
      */
     private familyAgeDays;
     /**
+     * Take over the tokens from a fresh sign-in, replacing the dead family without
+     * restarting Homebridge. The access token comes along so the next request does
+     * not immediately spend a rotation on a token that was just issued.
+     */
+    adoptTokens(tokens: {
+        refreshToken: string;
+        accessToken: string;
+        expiresIn: number;
+    }, familyStartedAt: string): void;
+    /**
      * Check if access token is expired or about to expire
      */
     private isTokenExpired;

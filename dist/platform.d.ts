@@ -15,7 +15,11 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
     private refreshTimeout?;
     private configManager;
     private authAuditLog;
+    private credentialStore;
     private consecutiveAuthFailures;
+    private autoReauthAttempted;
+    private lastAutoReauthAt;
+    private static readonly AUTO_REAUTH_COOLDOWN_MS;
     constructor(log: Logger, config: PlatformConfig, api: API);
     /**
      * Debug logging helper - respects config.debug flag
@@ -35,6 +39,23 @@ export declare class MELCloudHomePlatform implements DynamicPlatformPlugin {
      * it is tagged `plugin-start` to keep the two apart when reading the log.
      */
     private resolveFamilyStart;
+    /**
+     * Sign in again with saved credentials after MELCloud revoked the token family.
+     *
+     * MELCloud rejects a refresh token it issued itself every few weeks, at no
+     * fixed interval (measured: 18.5 d, ~22.4 d, and one family still healthy at
+     * 23.6 d). Nothing here can prevent that, so when the user has opted in to
+     * saving their credentials the honest response is to mint a new family and
+     * carry on rather than go "Not Responding" until they notice.
+     *
+     * Deliberately narrow. It fires only on a rejected *refresh token* — the exact
+     * failure that kills a family — never on 401/403 from an expired access token
+     * (already retried internally) and never on a 5xx or timeout, where signing in
+     * repeatedly during a MELCloud outage would be the worst possible behaviour.
+     * One attempt per dead family, plus a cooldown: a wrong password must never
+     * become a login loop against Cognito.
+     */
+    private tryAutoReauth;
     /**
      * Initialize authentication - uses OAuth refresh token from Homebridge UI
      */

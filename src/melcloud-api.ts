@@ -154,6 +154,23 @@ export class MELCloudAPI {
   }
 
   /**
+   * Take over the tokens from a fresh sign-in, replacing the dead family without
+   * restarting Homebridge. The access token comes along so the next request does
+   * not immediately spend a rotation on a token that was just issued.
+   */
+  adoptTokens(tokens: { refreshToken: string; accessToken: string; expiresIn: number }, familyStartedAt: string): void {
+    this.currentRefreshToken = tokens.refreshToken;
+    this.accessToken = tokens.accessToken;
+    this.tokenExpiry = Date.now() + tokens.expiresIn * 1000;
+    this.config.familyStartedAt = familyStartedAt;
+    // The new token has not been through a rotation yet; persisting is the
+    // caller's job and it records the result by calling this method.
+    this.lastRotatedSuffix = maskToken(tokens.refreshToken);
+    this.lastPersistedSuffix = maskToken(tokens.refreshToken);
+    this.lastPersistedAt = Date.now();
+  }
+
+  /**
    * Check if access token is expired or about to expire
    */
   private isTokenExpired(): boolean {
