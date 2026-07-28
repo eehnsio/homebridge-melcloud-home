@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.7.1...v1.8.0) (2026-07-28)
+
+
+### Features
+
+* **audit:** failures-only auth audit log with opt-out and clear button ([297f75f](https://github.com/eehnsio/homebridge-melcloud-home/commit/297f75f894136e513324be2d3e6f202935871e12))
+* **audit:** record family_start to measure refresh-token lifetime ([35702f3](https://github.com/eehnsio/homebridge-melcloud-home/commit/35702f3009d9cbedb981939d9d09ca05f55f2671))
+* **auth:** sign in again automatically after MELCloud revokes the token ([97c94a6](https://github.com/eehnsio/homebridge-melcloud-home/commit/97c94a6748d7d0c2f29aed460df3236915f77315)), closes [#17](https://github.com/eehnsio/homebridge-melcloud-home/issues/17)
+* **homekit:** show "Not Responding" when the cloud connection is dead ([58df750](https://github.com/eehnsio/homebridge-melcloud-home/commit/58df750428dd10787d1e2c40990f63855ed658e9))
+
+
+### Bug Fixes
+
+* **build:** drop stale oauth-helper output from the published package ([530f03d](https://github.com/eehnsio/homebridge-melcloud-home/commit/530f03d481ba59dab3744479789a2bf4701c9db6)), closes [#17](https://github.com/eehnsio/homebridge-melcloud-home/issues/17)
+* **platform:** fire auth circuit breaker instead of swallowing refresh errors ([6678729](https://github.com/eehnsio/homebridge-melcloud-home/commit/66787291524cf78e13b42410ef7b5ed5767535cd))
+* **ui:** make settings help text legible and regroup the panel ([b60538a](https://github.com/eehnsio/homebridge-melcloud-home/commit/b60538aa0a5f313d30ae4dce712f313370571424))
+
+
+### Code Refactoring
+
+* **auth:** share one proven OAuth login flow ([d34ddff](https://github.com/eehnsio/homebridge-melcloud-home/commit/d34ddff1664302239ea4b7796e6e79b312d4411b)), closes [#17](https://github.com/eehnsio/homebridge-melcloud-home/issues/17)
+
+
+### Documentation
+
+* correct README claims about credentials, sessions and options ([e9921ce](https://github.com/eehnsio/homebridge-melcloud-home/commit/e9921ceef7635ddebbb8f302407ac416e03c2ce1)), closes [#17](https://github.com/eehnsio/homebridge-melcloud-home/issues/17)
+
 ## [1.7.1](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.7.0...v1.7.1) (2026-06-17)
 
 
