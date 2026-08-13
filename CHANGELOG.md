@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.8.0...v1.8.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **auth:** stop binding saved credentials to the container image ([db0b570](https://github.com/eehnsio/homebridge-melcloud-home/commit/db0b57034459e332889bab6c99f2e6404a765e1c))
+
+
+### Documentation
+
+* trim the README to what the plugin does ([8be1b48](https://github.com/eehnsio/homebridge-melcloud-home/commit/8be1b486dd8962573155f562e40e46728357e317))
+
+
+### Miscellaneous
+
+* ignore local dev notes ([f6adf00](https://github.com/eehnsio/homebridge-melcloud-home/commit/f6adf007e05894ae3a0443e3970c3209c9556477))
+
 ## [1.8.0](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.7.1...v1.8.0) (2026-07-28)
 
 
