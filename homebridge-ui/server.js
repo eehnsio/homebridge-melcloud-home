@@ -52,12 +52,17 @@ class PluginUiServer extends HomebridgePluginUiServer {
     return new CredentialStore(storagePath, (msg) => console.warn('[MELCloudHome UI]', msg));
   }
 
-  /** Whether credentials are currently saved, so the checkbox reflects reality. */
+  /**
+   * Whether credentials are currently saved, so the checkbox reflects reality —
+   * and whether they can still be decrypted, so a file that has gone unreadable
+   * stops presenting itself as a working automatic sign-in.
+   */
   async credentialsStatus() {
     try {
-      return { success: true, saved: await this.getCredentialStore().has() };
+      const status = await this.getCredentialStore().status();
+      return { success: true, saved: status !== 'none', readable: status === 'ok' };
     } catch (error) {
-      return { success: false, saved: false, error: error.message };
+      return { success: false, saved: false, readable: false, error: error.message };
     }
   }
 

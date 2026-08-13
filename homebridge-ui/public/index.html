@@ -72,6 +72,12 @@
                                 has access to this server — the plugin must be able to decrypt it unattended.
                             </small>
                         </div>
+                        <div id="credentials-unreadable" class="alert alert-warning mt-2 mb-0 py-2 d-none">
+                            <small>
+                                Your saved password can no longer be decrypted, so automatic sign-in is off.
+                                Log in below with "Stay signed in" ticked to restore it.
+                            </small>
+                        </div>
                     </div>
                     <button type="button" id="direct-login-button" class="btn btn-success w-100 mb-2">
                         Login and Get Token
@@ -257,6 +263,12 @@
             try {
                 const status = await window.homebridge.request('/credentials-status', {});
                 stayCheckbox.checked = !!(status && status.saved);
+                // Saved but undecryptable: the switch is on and nothing works. Say so
+                // here, since the only place it would otherwise surface is a warning in
+                // the log weeks later, when the token finally dies.
+                document
+                    .getElementById('credentials-unreadable')
+                    .classList.toggle('d-none', !(status && status.saved && !status.readable));
             } catch (error) {
                 console.error('[UI] Could not read credential status:', error);
             }

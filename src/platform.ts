@@ -63,6 +63,12 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
     this.api.on('didFinishLaunching', async () => {
       try {
         this.debugLog('Homebridge finished launching...');
+        // Check the saved credentials now rather than discovering they are
+        // unreadable weeks later, at the one moment they were needed. The store
+        // explains the cause; this only decides whether to say anything.
+        if ((await this.credentialStore.status()) === 'unreadable') {
+          this.log.warn('Automatic sign-in is currently unavailable — log in again in the plugin settings to restore it.');
+        }
         await this.initializeAuthentication();
       } catch (error) {
         this.log.error('Failed during initialization:', error instanceof Error ? error.message : String(error));
