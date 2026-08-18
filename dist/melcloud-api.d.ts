@@ -62,7 +62,10 @@ export interface UserContext {
     email: string;
     language: string;
     country: string;
+    /** Buildings the account owns. */
     buildings: Building[];
+    /** Buildings shared with the account through an invitation. Same shape as `buildings`. */
+    guestBuildings?: Building[];
 }
 export interface DeviceCommand {
     power?: boolean | null;
@@ -144,7 +147,11 @@ export declare class MELCloudAPI {
      */
     controlDevice(deviceId: string, command: DeviceCommand): Promise<void>;
     /**
-     * Get all air-to-air units from all buildings
+     * Get all air-to-air units from all buildings, both owned and shared.
+     *
+     * MELCloud Home puts units the account owns in `buildings` and units shared with it via an
+     * invitation in `guestBuildings`. Both use the same shape and both accept control commands,
+     * so an invited-only account must be treated exactly like an owner (issue #21).
      */
     getAllDevices(): Promise<AirToAirUnit[]>;
     /**

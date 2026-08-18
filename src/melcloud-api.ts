@@ -69,7 +69,10 @@ export interface UserContext {
   email: string;
   language: string;
   country: string;
+  /** Buildings the account owns. */
   buildings: Building[];
+  /** Buildings shared with the account through an invitation. Same shape as `buildings`. */
+  guestBuildings?: Building[];
 }
 
 export interface DeviceCommand {
@@ -504,22 +507,50 @@ export class MELCloudAPI {
   }
 
   /**
-   * Get all air-to-air units from all buildings
+   * Get all air-to-air units from all buildings, both owned and shared.
+   *
+   * MELCloud Home puts units the account owns in `buildings` and units shared with it via an
+   * invitation in `guestBuildings`. Both use the same shape and both accept control commands,
+   * so an invited-only account must be treated exactly like an owner (issue #21).
    */
   async getAllDevices(): Promise<AirToAirUnit[]> {
     const context = await this.getUserContext();
     const devices: AirToAirUnit[] = [];
 
-    if (!context?.buildings || !Array.isArray(context.buildings)) {
+    const owned = Array.isArray(context?.buildings) ? context.buildings : null;
+    const shared = Array.isArray(context?.guestBuildings) ? context.guestBuildings : null;
+
+    if (!owned && !shared) {
       this.config.debugLog?.('[MELCloud] Invalid context response: missing buildings array');
       return devices;
     }
 
-    for (const building of context.buildings) {
-      if (Array.isArray(building.airToAirUnits)) {
-        devices.push(...building.airToAirUnits);
+    // Dedupe by id in case the same unit is listed under both arrays.
+    const seen = new Set<string>();
+    const collect = (buildings: Building[] | null): number => {
+      let count = 0;
+      for (const building of buildings ?? []) {
+        if (!Array.isArray(building.airToAirUnits)) {
+          continue;
+        }
+        for (const unit of building.airToAirUnits) {
+          if (seen.has(unit.id)) {
+            continue;
+          }
+          seen.add(unit.id);
+          devices.push(unit);
+          count++;
+        }
       }
-    }
+      return count;
+    };
+
+    const ownedCount = collect(owned);
+    const sharedCount = collect(shared);
+    this.config.debugLog?.(
+      `[MELCloud] Found ${ownedCount} owned unit(s) in ${owned?.length ?? 0} building(s), ` +
+      `${sharedCount} shared unit(s) in ${shared?.length ?? 0} guest building(s)`,
+    );
 
     return devices;
   }
