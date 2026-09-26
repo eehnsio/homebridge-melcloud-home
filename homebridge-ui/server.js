@@ -32,7 +32,8 @@ class PluginUiServer extends HomebridgePluginUiServer {
       if (!storagePath) {
         return { success: false, error: 'Could not determine Homebridge storage path' };
       }
-      const logPath = path.join(storagePath, 'melcloud-auth-audit.log');
+      const { AUTH_AUDIT_LOG_FILE } = require('../dist/auth-audit-log');
+      const logPath = path.join(storagePath, AUTH_AUDIT_LOG_FILE);
       await fs.promises.rm(logPath, { force: true });
       console.log('[MELCloudHome UI] Auth audit log cleared:', logPath);
       return { success: true, message: 'Auth audit log cleared.' };
@@ -119,40 +120,12 @@ class PluginUiServer extends HomebridgePluginUiServer {
       if (!storagePath || !refreshToken) {
         return;
       }
-      if (!(await this.isAuditLogEnabled(storagePath))) {
-        return;
-      }
-      const entry = {
-        ts: new Date().toISOString(),
-        event: 'family_start',
-        tokenSuffix: `...${refreshToken.slice(-8)}`,
-        source: 'oauth-ui',
-      };
-      await fs.promises.appendFile(
-        path.join(storagePath, 'melcloud-auth-audit.log'),
-        `${JSON.stringify(entry)}\n`,
-        'utf8',
-      );
-      console.log('[MELCloudHome UI] Recorded family_start for token', entry.tokenSuffix);
+      const { recordFamilyStart, maskToken } = require('../dist/auth-audit-log');
+      await recordFamilyStart(storagePath, refreshToken, 'oauth-ui');
+      console.log('[MELCloudHome UI] Recorded family_start for token', maskToken(refreshToken));
     } catch (error) {
       // Bookkeeping must never break a successful login.
       console.error('[MELCloudHome UI] Failed to record family_start:', error.message);
-    }
-  }
-
-  /**
-   * Honour the `authAuditLog: false` opt-out from the UI process, which has no
-   * access to the running plugin's config. Unreadable config → assume the
-   * default (on), matching the plugin.
-   */
-  async isAuditLogEnabled(storagePath) {
-    try {
-      const raw = await fs.promises.readFile(path.join(storagePath, 'config.json'), 'utf8');
-      const platforms = JSON.parse(raw).platforms || [];
-      const entry = platforms.find((p) => p && p.platform === 'MELCloudHome');
-      return !entry || entry.authAuditLog !== false;
-    } catch {
-      return true;
     }
   }
 

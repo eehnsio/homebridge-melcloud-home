@@ -10,13 +10,13 @@ import type {
 import { Categories } from 'homebridge';
 import path from 'node:path';
 import { MELCloudAccessory } from './accessory';
-import { AuthAuditLog, maskToken } from './auth-audit-log';
+import { AUTH_AUDIT_LOG_FILE, AuthAuditLog, maskToken } from './auth-audit-log';
 import { ConfigManager } from './config-manager';
 import { CredentialStore } from './credential-store';
 import { FanSpeedButton } from './fan-speed-button';
 import { type AirToAirUnit, MELCloudAPI } from './melcloud-api';
 import { loginWithPassword } from './oauth-login';
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
+import { LOGIN_COMMAND, PLATFORM_NAME, PLUGIN_NAME, REAUTH_HINT, REAUTH_LINE } from './settings';
 import { VaneButton } from './vane-button';
 
 export class MELCloudHomePlatform implements DynamicPlatformPlugin {
@@ -52,7 +52,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
     // recording only failures/recovery (not routine successes) with self-contained
     // token context. On by default; opt out with `authAuditLog: false`.
     this.authAuditLog = new AuthAuditLog(
-      path.join(this.api.user.storagePath(), 'melcloud-auth-audit.log'),
+      path.join(this.api.user.storagePath(), AUTH_AUDIT_LOG_FILE),
       this.config.authAuditLog !== false,
     );
     // Optional, opt-in: encrypted email/password so the plugin can sign in again
@@ -67,7 +67,10 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
         // unreadable weeks later, at the one moment they were needed. The store
         // explains the cause; this only decides whether to say anything.
         if ((await this.credentialStore.status()) === 'unreadable') {
-          this.log.warn('Automatic sign-in is currently unavailable — log in again in the plugin settings to restore it.');
+          this.log.warn(
+            `Automatic sign-in is currently unavailable — restore it in the plugin settings, ` +
+              `or run: ${LOGIN_COMMAND} --save-credentials`,
+          );
         }
         await this.initializeAuthentication();
       } catch (error) {
@@ -184,7 +187,10 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       this.log.error(`Automatic sign-in failed: ${reason}`);
-      this.log.error('Saved credentials may be out of date — log in again via the Homebridge UI to replace them.');
+      this.log.error(
+        `Saved credentials may be out of date — replace them in the plugin settings, ` +
+          `or run: ${LOGIN_COMMAND} --save-credentials`,
+      );
       void this.authAuditLog.write({ event: 'refresh_failure', errorMessage: `auto-reauth failed: ${reason}` });
       return false;
     }
@@ -224,15 +230,14 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
       }
     }
 
-    // No authentication credentials provided
-    this.log.warn('⚠️  No refresh token found');
+    // No authentication credentials provided. This is the message a HOOBS user
+    // reaches for when the plugin's settings page never appears, so it has to
+    // carry the terminal route as well as the button they cannot see.
+    this.log.warn('⚠️  No refresh token found — the plugin cannot talk to MELCloud yet.');
     this.log.warn('');
-    this.log.warn('📝 To authenticate:');
-    this.log.warn('   1. Open Homebridge Config UI');
-    this.log.warn('   2. Go to Plugins → MELCloud Home');
-    this.log.warn('   3. Click the Settings button (⚙️)');
-    this.log.warn('   4. Click "LOGIN VIA BROWSER"');
-    this.log.warn('   5. Follow the on-screen instructions');
+    for (const line of REAUTH_HINT) {
+      this.log.warn(line);
+    }
     this.log.warn('');
   }
 
@@ -251,7 +256,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
         this.log.warn('No devices found. Please check:');
         this.log.warn('  1. Your MELCloud Home account has devices configured');
         this.log.warn('  2. Your cookies are valid and not expired');
-        this.log.warn('  3. Try logging in again through the plugin settings');
+        this.log.warn(`  3. Try logging in again — plugin settings, or: ${LOGIN_COMMAND}`);
         return;
       }
 
@@ -421,7 +426,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
 
       if (isAuthError) {
         this.log.error('Authentication failed:', message);
-        this.log.error('Please re-authenticate via Homebridge UI → Plugins → MELCloud Home → Settings → LOGIN VIA BROWSER');
+        this.log.error(REAUTH_LINE);
       } else if (message.includes('timeout')) {
         this.log.error('Request timed out - check your network connection');
       } else {
@@ -471,7 +476,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
             }
             if (this.consecutiveAuthFailures === 3) {
               this.log.error('Repeated authentication failures. Your refresh token is likely expired or invalid.');
-              this.log.error('Please re-authenticate via Homebridge UI → Plugins → MELCloud Home → Settings → LOGIN VIA BROWSER');
+              this.log.error(REAUTH_LINE);
               this.log.error('Pausing device refresh until Homebridge is restarted.');
               void this.authAuditLog.write({
                 event: 'circuit_breaker_paused',

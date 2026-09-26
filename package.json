@@ -4,6 +4,9 @@
   "version": "1.8.2",
   "description": "Homebridge plugin for Mitsubishi Electric Air Conditioners using the MELCloud Home platform (melcloudhome.com)",
   "main": "dist/index.js",
+  "bin": {
+    "melcloud-login": "dist/login-cli.js"
+  },
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",

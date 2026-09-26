@@ -54,6 +54,36 @@ npm install -g homebridge-melcloud-home
 
 Your devices appear in HomeKit automatically.
 
+### No settings page? (HOOBS 5.1.8, headless setups)
+
+The settings page needs a host that implements Homebridge's plugin-UI protocol. **HOOBS 5.1.8
+— the current HOOBS "stable" release — has a bug in its own hub that stops every plugin's
+settings page from loading**, so there you only see "Editor" and "Details". HOOBS fixed it in
+5.1.17, which as of September 2026 is only in their "bleeding" channel (and needs Node 22).
+Rather than switch channels, sign in from a terminal instead:
+
+```bash
+npx -p homebridge-melcloud-home melcloud-login
+```
+
+It asks for your MELCloud email and password, then prints a `platforms` entry to paste into
+`config.json` — on HOOBS, the **Editor** section of the plugin's configuration tab. Restart
+Homebridge afterwards.
+
+On a HOOBS Box, enable a terminal under **System Settings → Terminal**, then use *Open
+Terminal*, HelM (`http://hoobs.local:9090`) or SSH. The token is not tied to a machine, so
+you can also run the command on your own computer and paste the result in.
+
+To also enable "Stay signed in" without the settings page, run it on the machine that runs
+Homebridge and point it at the folder holding your `config.json`:
+
+```bash
+npx -p homebridge-melcloud-home melcloud-login --storage-path /var/lib/homebridge --save-credentials
+```
+
+Those saved credentials are bound to that machine and cannot be copied elsewhere.
+Run `melcloud-login --help` for all options.
+
 ### Authentication
 
 You sign in once with your MELCloud account and the plugin keeps a token from then on.

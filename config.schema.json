@@ -3,9 +3,10 @@
   "pluginType": "platform",
   "singular": true,
   "customUi": true,
-  "headerDisplay": "To authenticate with MELCloud, click the **Settings** (⚙️) button above and follow the OAuth flow. After authentication, your settings will appear here.",
+  "headerDisplay": "To authenticate with MELCloud, click the **Settings** (⚙️) button above and follow the OAuth flow. After authentication, your settings will appear here.\n\nNo Settings page? Run `npx -p homebridge-melcloud-home melcloud-login` in a terminal and paste the token it prints into Refresh Token.",
   "schema": {
     "type": "object",
+    "description": "No login button on this page? Your interface could not load this plugin's settings page. Run  npx -p homebridge-melcloud-home melcloud-login  in a terminal, paste the token it prints into Refresh Token below, and restart Homebridge.",
     "required": ["refreshToken"],
     "properties": {
       "name": {
@@ -16,9 +17,8 @@
       "refreshToken": {
         "title": "Refresh Token",
         "type": "string",
-        "description": "Automatically set via OAuth. Do NOT edit manually!",
+        "description": "Set automatically by the Settings page. If your interface cannot show the Settings page, get a token with `npx -p homebridge-melcloud-home melcloud-login` and paste it here.",
         "placeholder": "Configured via Settings button",
-        "readOnly": true,
         "x-schema-form": {
           "type": "password"
         }

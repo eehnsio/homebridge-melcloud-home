@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Logger } from 'homebridge';
+import { LOGIN_COMMAND } from './settings';
 
 export class ConfigManager {
   private configPath: string;
@@ -79,7 +80,7 @@ export class ConfigManager {
       return true;
     } catch (error) {
       this.log.error('Failed to save refresh token to config:', error instanceof Error ? error.message : String(error));
-      this.log.warn('   Please re-authenticate via the plugin settings UI to obtain a new token');
+      this.log.warn(`   Get a new token in the plugin settings, or run: ${LOGIN_COMMAND}`);
       return false;
     }
   }

@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import { PLATFORM_NAME } from './settings';
 
 /**
  * Auth audit log — records OAuth token-refresh FAILURES (and the recovery /
@@ -55,6 +57,37 @@ export interface FamilyStart {
 export function maskToken(token: string | undefined | null): string {
   if (!token || token.length < 8) return '<empty>';
   return `...${token.slice(-8)}`;
+}
+
+/** File name in the Homebridge storage directory. */
+export const AUTH_AUDIT_LOG_FILE = 'melcloud-auth-audit.log';
+
+/**
+ * The `authAuditLog: false` opt-out, read straight from config.json for callers
+ * outside the running plugin (the custom UI, the login CLI). Unreadable config →
+ * the default (on), matching the plugin.
+ */
+export async function isAuditLogEnabledInConfig(storagePath: string): Promise<boolean> {
+  try {
+    const raw = await fs.promises.readFile(path.join(storagePath, 'config.json'), 'utf8');
+    const platforms = JSON.parse(raw).platforms || [];
+    const entry = platforms.find((p: { platform?: string }) => p?.platform === PLATFORM_NAME);
+    return !entry || entry.authAuditLog !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Anchor a new refresh-token family after an interactive login, for callers that
+ * don't hold the plugin's AuthAuditLog instance. Honours the config opt-out.
+ */
+export async function recordFamilyStart(storagePath: string, refreshToken: string, source: string): Promise<void> {
+  const log = new AuthAuditLog(
+    path.join(storagePath, AUTH_AUDIT_LOG_FILE),
+    await isAuditLogEnabledInConfig(storagePath),
+  );
+  await log.write({ event: 'family_start', tokenSuffix: maskToken(refreshToken), source });
 }
 
 export class AuthAuditLog {
