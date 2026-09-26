@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.8.2...v1.9.0) (2026-09-26)
+
+
+### Features
+
+* add melcloud-login CLI for hosts without the custom UI ([362b78e](https://github.com/eehnsio/homebridge-melcloud-home/commit/362b78eaf288121211a3ef6b08f4af074b2d5593)), closes [#23](https://github.com/eehnsio/homebridge-melcloud-home/issues/23)
+
+
+### Bug Fixes
+
+* **auth:** don't pause polling on MELCloud 401 bursts ([bf5bfab](https://github.com/eehnsio/homebridge-melcloud-home/commit/bf5bfabfd95db27329c75c705c91dfa25c241009))
+* retry device discovery when it fails at startup ([2b7afdd](https://github.com/eehnsio/homebridge-melcloud-home/commit/2b7afddc790108d8c08c90c4b3a0126da0a810c9))
+
+
+### Miscellaneous
+
+* stop tracking dist/ ([8ac9801](https://github.com/eehnsio/homebridge-melcloud-home/commit/8ac980132643ff870eca57934e07b4d1938f9b12))
+
 ## [1.8.2](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.8.1...v1.8.2) (2026-08-18)
 
 
