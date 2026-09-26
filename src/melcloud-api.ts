@@ -95,6 +95,18 @@ interface TokenResponse {
   token_type: string;
 }
 
+/**
+ * The refresh token itself was rejected (the `/connect/token` call failed). Kept
+ * distinct from an API 401/403, which makeRequest() has already answered with a
+ * fresh token and a retry: only this one means the login is actually gone.
+ */
+export class TokenRefreshError extends Error {
+  constructor(readonly status: number | undefined) {
+    super(`Token refresh failed: HTTP ${status}`);
+    this.name = 'TokenRefreshError';
+  }
+}
+
 export class MELCloudAPI {
   private readonly config: MELCloudConfig;
   private accessToken?: string;
@@ -235,7 +247,7 @@ export class MELCloudAPI {
               responseBody: body.slice(0, 500),
               ...this.failureContext(usedTokenSuffix),
             });
-            reject(new Error(`Token refresh failed: HTTP ${res.statusCode}`));
+            reject(new TokenRefreshError(res.statusCode));
             return;
           }
 

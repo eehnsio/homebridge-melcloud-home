@@ -14,7 +14,7 @@ import { AUTH_AUDIT_LOG_FILE, AuthAuditLog, maskToken } from './auth-audit-log';
 import { ConfigManager } from './config-manager';
 import { CredentialStore } from './credential-store';
 import { FanSpeedButton } from './fan-speed-button';
-import { type AirToAirUnit, MELCloudAPI } from './melcloud-api';
+import { type AirToAirUnit, MELCloudAPI, TokenRefreshError } from './melcloud-api';
 import { loginWithPassword } from './oauth-login';
 import { LOGIN_COMMAND, PLATFORM_NAME, PLUGIN_NAME, REAUTH_HINT, REAUTH_LINE } from './settings';
 import { VaneButton } from './vane-button';
@@ -34,6 +34,11 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
   private authAuditLog: AuthAuditLog;
   private credentialStore: CredentialStore;
   private consecutiveAuthFailures = 0;
+  // 401/403 from the API itself right after a successful token refresh. MELCloud
+  // does this in bursts (seen 2026-09-24: 25 min of alternating 401/OK while the
+  // token refreshed fine every time), so it backs off but never trips the breaker.
+  private consecutiveApiRejections = 0;
+  private static readonly API_REJECTION_MAX_BACKOFF_MS = 10 * 60 * 1000;
   // One automatic sign-in per dead token family, cleared once a refresh succeeds.
   private autoReauthAttempted = false;
   private lastAutoReauthAt = 0;
@@ -143,8 +148,8 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
    * One attempt per dead family, plus a cooldown: a wrong password must never
    * become a login loop against Cognito.
    */
-  private async tryAutoReauth(message: string): Promise<boolean> {
-    if (!/^Token refresh failed: HTTP 400$/.test(message)) {
+  private async tryAutoReauth(error: unknown): Promise<boolean> {
+    if (!(error instanceof TokenRefreshError && error.status === 400)) {
       return false;
     }
     if (this.autoReauthAttempted) {
@@ -448,24 +453,48 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
       }
     });
 
+    // Never back off below the configured interval, even when that is above the cap.
+    const maxBackoff = Math.max(interval, MELCloudHomePlatform.API_REJECTION_MAX_BACKOFF_MS);
+
     // Self-rescheduling refresh to prevent overlapping cycles
-    const scheduleNext = () => {
+    const scheduleNext = (delay = interval) => {
       this.refreshInterval = setTimeout(async () => {
         this.debugLog('Refresh cycle starting...');
         try {
           await this.refreshAllDevices();
-          if (this.consecutiveAuthFailures > 0) {
+          if (this.consecutiveAuthFailures > 0 || this.consecutiveApiRejections > 0) {
             this.log.info('Connection restored.');
             void this.authAuditLog.write({ event: 'connection_restored' });
           }
           this.consecutiveAuthFailures = 0;
+          this.consecutiveApiRejections = 0;
           this.autoReauthAttempted = false;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          const isAuthError = /HTTP (400|401|403)/.test(message);
+          // Only a rejected *refresh token* means the login is gone. A 401/403 from
+          // the API is thrown after makeRequest() already refreshed the token and
+          // retried, so the token is fine and MELCloud is the one misbehaving —
+          // telling the user to sign in again would be wrong, and pausing until a
+          // restart turns a MELCloud blip into hours of downtime.
+          const isRefreshTokenRejected =
+            error instanceof TokenRefreshError && [400, 401, 403].includes(error.status ?? 0);
+          const isApiRejection = !isRefreshTokenRejected && /HTTP (400|401|403)/.test(message);
 
-          if (isAuthError) {
-            if (await this.tryAutoReauth(message)) {
+          if (isApiRejection) {
+            this.consecutiveApiRejections++;
+            if (this.consecutiveApiRejections === 1) {
+              this.log.warn(
+                `MELCloud rejected the request (${message}) although the token is valid. Retrying with backoff.`,
+              );
+            }
+            const backoff = Math.min(interval * 2 ** (this.consecutiveApiRejections - 1), maxBackoff);
+            this.debugLog(`API rejection #${this.consecutiveApiRejections}, next refresh in ${backoff / 1000}s`);
+            scheduleNext(backoff);
+            return;
+          }
+
+          if (isRefreshTokenRejected) {
+            if (await this.tryAutoReauth(error)) {
               this.consecutiveAuthFailures = 0;
               scheduleNext();
               return;
@@ -490,7 +519,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
           }
         }
         scheduleNext();
-      }, interval);
+      }, delay);
     };
     scheduleNext();
   }
