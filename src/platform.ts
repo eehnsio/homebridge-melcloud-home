@@ -227,7 +227,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
         });
 
         this.debugLog('MELCloud API initialized successfully');
-        await this.discoverDevices();
+        this.startPolling();
         return;
       } catch (error) {
         this.log.error('Failed to initialize with refresh token:', error);
@@ -251,216 +251,210 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
     this.accessories.push(accessory);
   }
 
-  private async discoverDevices() {
-    this.debugLog('Discovering MELCloud Home devices...');
+  /**
+   * Wire up an accessory for each unit from a freshly fetched device list.
+   * Synchronous on purpose: the fetch lives in the polling loop, which retries it,
+   * so a failure there can never leave half-registered accessories to redo.
+   * Returns the number of units found.
+   */
+  private registerDevices(devices: AirToAirUnit[]): number {
+    if (devices.length === 0) {
+      this.log.warn('No devices found. Please check:');
+      this.log.warn('  1. Your MELCloud Home account has devices configured');
+      this.log.warn('  2. Your cookies are valid and not expired');
+      this.log.warn(`  3. Try logging in again — plugin settings, or: ${LOGIN_COMMAND}`);
+      return 0;
+    }
 
-    try {
-      const devices = await this.getAPI().getAllDevices();
+    // The set of UUIDs we expect to exist after this discovery pass. Anything cached but
+    // not in here gets unregistered below.
+    const expectedUuids = new Set<string>();
 
-      if (devices.length === 0) {
-        this.log.warn('No devices found. Please check:');
-        this.log.warn('  1. Your MELCloud Home account has devices configured');
-        this.log.warn('  2. Your cookies are valid and not expired');
-        this.log.warn(`  3. Try logging in again — plugin settings, or: ${LOGIN_COMMAND}`);
-        return;
-      }
+    // Register each device. As of v1.7.0, fan/vane switches are SEPARATE bridged accessories
+    // (one PlatformAccessory each) instead of child Switch services on the main HeaterCooler
+    // accessory. iOS 18+ refuses to render single-tap power toggle on the Home grid tile when
+    // an accessory has multiple interactive services, even with setPrimaryService +
+    // addLinkedService. The only reliable way to keep the AC's quick-toggle tile is to put
+    // each switch on its own accessory. Trade-off: switches initially land in the user's
+    // Default Room and need to be dragged to the right room manually (one-time per switch).
+    for (const device of devices) {
+      const mainUuid = this.api.hap.uuid.generate(device.id);
+      expectedUuids.add(mainUuid);
+      let mainAccessory = this.accessories.find((accessory) => accessory.UUID === mainUuid);
 
-      // The set of UUIDs we expect to exist after this discovery pass. Anything cached but
-      // not in here gets unregistered below.
-      const expectedUuids = new Set<string>();
-
-      // Register each device. As of v1.7.0, fan/vane switches are SEPARATE bridged accessories
-      // (one PlatformAccessory each) instead of child Switch services on the main HeaterCooler
-      // accessory. iOS 18+ refuses to render single-tap power toggle on the Home grid tile when
-      // an accessory has multiple interactive services, even with setPrimaryService +
-      // addLinkedService. The only reliable way to keep the AC's quick-toggle tile is to put
-      // each switch on its own accessory. Trade-off: switches initially land in the user's
-      // Default Room and need to be dragged to the right room manually (one-time per switch).
-      for (const device of devices) {
-        const mainUuid = this.api.hap.uuid.generate(device.id);
-        expectedUuids.add(mainUuid);
-        let mainAccessory = this.accessories.find((accessory) => accessory.UUID === mainUuid);
-
-        if (mainAccessory) {
-          this.debugLog('Restoring existing accessory from cache: ' + device.givenDisplayName);
-          mainAccessory.context.device = device;
-          mainAccessory.context.kind = 'main';
-          // MIGRATION: strip any leftover fan-/vane- child Switch services from the v1.6.x era
-          // child-services approach. Without this they would show as ghost switches inside the
-          // AC tile's expanded view alongside the new separate-accessory switches.
-          for (const svc of [...mainAccessory.services]) {
-            const sub = svc.subtype;
-            if (sub && (sub.startsWith('fan-') || sub.startsWith('vane-'))) {
-              this.debugLog(`Migration: removing legacy child switch service ${svc.displayName} (${sub})`);
-              mainAccessory.removeService(svc);
-            }
-          }
-          this.api.updatePlatformAccessories([mainAccessory]);
-          const accessoryInstance = new MELCloudAccessory(this, mainAccessory);
-          this.accessoryInstances.set(mainUuid, accessoryInstance);
-        } else {
-          this.debugLog('Adding new accessory: ' + device.givenDisplayName);
-          mainAccessory = new this.api.platformAccessory(
-            device.givenDisplayName,
-            mainUuid,
-            Categories.AIR_CONDITIONER,
-          );
-          mainAccessory.context.device = device;
-          mainAccessory.context.kind = 'main';
-          this.accessories.push(mainAccessory);
-          const accessoryInstance = new MELCloudAccessory(this, mainAccessory);
-          this.accessoryInstances.set(mainUuid, accessoryInstance);
-          this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [mainAccessory]);
-        }
-
-        // Fan Speed Buttons — each one is its own bridged PlatformAccessory.
-        const fanSpeedButtons = this.config.fanSpeedButtons || 'none';
-        let activeFanSpeedKeys: string[] = [];
-        if (fanSpeedButtons !== 'none' && device.capabilities.numberOfFanSpeeds > 0) {
-          if (fanSpeedButtons === 'simple') activeFanSpeedKeys = ['auto', 'quiet', 'max'];
-          else if (fanSpeedButtons === 'all') activeFanSpeedKeys = ['auto', 'quiet', '2', '3', '4', 'max'];
-
-          for (const speedKey of activeFanSpeedKeys) {
-            const speedName = FanSpeedButton.SPEED_NAMES[FanSpeedButton.SPEED_API_VALUES[speedKey]] || speedKey;
-            const displayName = `${device.givenDisplayName} Fan ${speedName}`;
-            const accUuid = this.api.hap.uuid.generate(`${device.id}-fan-${speedKey}`);
-            expectedUuids.add(accUuid);
-
-            let accessory = this.accessories.find((a) => a.UUID === accUuid);
-            const isNew = !accessory;
-            if (!accessory) {
-              this.debugLog(`Adding Fan ${speedName} accessory: ${displayName}`);
-              accessory = new this.api.platformAccessory(displayName, accUuid, Categories.SWITCH);
-              this.accessories.push(accessory);
-            }
-            accessory.context.device = device;
-            accessory.context.kind = 'fan-button';
-            accessory.context.deviceId = device.id;
-            accessory.context.subtype = `fan-${speedKey}`;
-
-            const switchService =
-              accessory.getService(this.Service.Switch) || accessory.addService(this.Service.Switch, displayName);
-
-            const buttonInstance = new FanSpeedButton(this, accessory, switchService, speedKey);
-            this.fanButtonInstances.set(`${mainUuid}-fan-${speedKey}`, buttonInstance);
-
-            if (isNew) {
-              this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-            } else {
-              this.api.updatePlatformAccessories([accessory]);
-            }
+      if (mainAccessory) {
+        this.debugLog('Restoring existing accessory from cache: ' + device.givenDisplayName);
+        mainAccessory.context.device = device;
+        mainAccessory.context.kind = 'main';
+        // MIGRATION: strip any leftover fan-/vane- child Switch services from the v1.6.x era
+        // child-services approach. Without this they would show as ghost switches inside the
+        // AC tile's expanded view alongside the new separate-accessory switches.
+        for (const svc of [...mainAccessory.services]) {
+          const sub = svc.subtype;
+          if (sub && (sub.startsWith('fan-') || sub.startsWith('vane-'))) {
+            this.debugLog(`Migration: removing legacy child switch service ${svc.displayName} (${sub})`);
+            mainAccessory.removeService(svc);
           }
         }
-
-        // Vane Buttons — each one is its own bridged PlatformAccessory.
-        // Legacy config: vaneButtons === 'simple' is treated as 'buttons'.
-        const vaneControl = this.config.vaneControl || this.config.vaneButtons || 'none';
-        const enableVaneButtons = vaneControl === 'buttons' || vaneControl === 'simple';
-        let activeVanePositions: string[] = [];
-
-        if (enableVaneButtons) {
-          // Single Swing switch per AC: ON = Swing (oscillating), OFF = Auto (AC picks fixed
-          // position). The setter in vane-button.ts handles the OFF→Auto transition. Auto is
-          // never exposed as its own button — it would just be a "not Swing" duplicate.
-          activeVanePositions = ['swing'];
-          for (const positionKey of activeVanePositions) {
-            const positionName = VaneButton.POSITION_NAMES[positionKey] || positionKey;
-            const displayName = `${device.givenDisplayName} Vane ${positionName}`;
-            const accUuid = this.api.hap.uuid.generate(`${device.id}-vane-${positionKey}`);
-            expectedUuids.add(accUuid);
-
-            let accessory = this.accessories.find((a) => a.UUID === accUuid);
-            const isNew = !accessory;
-            if (!accessory) {
-              this.debugLog(`Adding Vane ${positionName} accessory: ${displayName}`);
-              accessory = new this.api.platformAccessory(displayName, accUuid, Categories.SWITCH);
-              this.accessories.push(accessory);
-            }
-            accessory.context.device = device;
-            accessory.context.kind = 'vane-button';
-            accessory.context.deviceId = device.id;
-            accessory.context.subtype = `vane-${positionKey}`;
-
-            const switchService =
-              accessory.getService(this.Service.Switch) || accessory.addService(this.Service.Switch, displayName);
-
-            const buttonInstance = new VaneButton(this, accessory, switchService, positionKey);
-            this.vaneButtonInstances.set(`${mainUuid}-vane-${positionKey}`, buttonInstance);
-
-            if (isNew) {
-              this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-            } else {
-              this.api.updatePlatformAccessories([accessory]);
-            }
-          }
-        }
-      }
-
-      // Remove any cached accessory that's no longer expected: devices that vanished,
-      // switches that were disabled in config, or legacy standalone accessories from
-      // pre-1.6.0 / child-service-era variants.
-      const accessoriesToRemove = this.accessories.filter((accessory) => {
-        if (!expectedUuids.has(accessory.UUID)) {
-          this.debugLog(`Removing unexpected/orphaned accessory: ${accessory.displayName}`);
-          return true;
-        }
-        return false;
-      });
-
-      if (accessoriesToRemove.length > 0) {
-        this.debugLog(`Removing ${accessoriesToRemove.length} cached accessory(ies)`);
-        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, accessoriesToRemove);
-        // Also remove from our local array
-        for (const acc of accessoriesToRemove) {
-          const index = this.accessories.indexOf(acc);
-          if (index > -1) {
-            this.accessories.splice(index, 1);
-          }
-        }
-      }
-
-      // Log startup summary (the only info-level startup message)
-      const interval = Math.max(10, Math.min(3600, this.config.refreshInterval || 30));
-      this.log.info(`Initialized with ${devices.length} device(s), refresh interval ${interval}s`);
-
-      // Start refresh interval
-      this.startRefreshInterval();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const isAuthError = /HTTP (400|401|403)/.test(message);
-
-      if (isAuthError) {
-        this.log.error('Authentication failed:', message);
-        this.log.error(REAUTH_LINE);
-      } else if (message.includes('timeout')) {
-        this.log.error('Request timed out - check your network connection');
+        this.api.updatePlatformAccessories([mainAccessory]);
+        const accessoryInstance = new MELCloudAccessory(this, mainAccessory);
+        this.accessoryInstances.set(mainUuid, accessoryInstance);
       } else {
-        this.log.error('Failed to discover devices:', message);
+        this.debugLog('Adding new accessory: ' + device.givenDisplayName);
+        mainAccessory = new this.api.platformAccessory(device.givenDisplayName, mainUuid, Categories.AIR_CONDITIONER);
+        mainAccessory.context.device = device;
+        mainAccessory.context.kind = 'main';
+        this.accessories.push(mainAccessory);
+        const accessoryInstance = new MELCloudAccessory(this, mainAccessory);
+        this.accessoryInstances.set(mainUuid, accessoryInstance);
+        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [mainAccessory]);
+      }
+
+      // Fan Speed Buttons — each one is its own bridged PlatformAccessory.
+      const fanSpeedButtons = this.config.fanSpeedButtons || 'none';
+      let activeFanSpeedKeys: string[] = [];
+      if (fanSpeedButtons !== 'none' && device.capabilities.numberOfFanSpeeds > 0) {
+        if (fanSpeedButtons === 'simple') activeFanSpeedKeys = ['auto', 'quiet', 'max'];
+        else if (fanSpeedButtons === 'all') activeFanSpeedKeys = ['auto', 'quiet', '2', '3', '4', 'max'];
+
+        for (const speedKey of activeFanSpeedKeys) {
+          const speedName = FanSpeedButton.SPEED_NAMES[FanSpeedButton.SPEED_API_VALUES[speedKey]] || speedKey;
+          const displayName = `${device.givenDisplayName} Fan ${speedName}`;
+          const accUuid = this.api.hap.uuid.generate(`${device.id}-fan-${speedKey}`);
+          expectedUuids.add(accUuid);
+
+          let accessory = this.accessories.find((a) => a.UUID === accUuid);
+          const isNew = !accessory;
+          if (!accessory) {
+            this.debugLog(`Adding Fan ${speedName} accessory: ${displayName}`);
+            accessory = new this.api.platformAccessory(displayName, accUuid, Categories.SWITCH);
+            this.accessories.push(accessory);
+          }
+          accessory.context.device = device;
+          accessory.context.kind = 'fan-button';
+          accessory.context.deviceId = device.id;
+          accessory.context.subtype = `fan-${speedKey}`;
+
+          const switchService =
+            accessory.getService(this.Service.Switch) || accessory.addService(this.Service.Switch, displayName);
+
+          const buttonInstance = new FanSpeedButton(this, accessory, switchService, speedKey);
+          this.fanButtonInstances.set(`${mainUuid}-fan-${speedKey}`, buttonInstance);
+
+          if (isNew) {
+            this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+          } else {
+            this.api.updatePlatformAccessories([accessory]);
+          }
+        }
+      }
+
+      // Vane Buttons — each one is its own bridged PlatformAccessory.
+      // Legacy config: vaneButtons === 'simple' is treated as 'buttons'.
+      const vaneControl = this.config.vaneControl || this.config.vaneButtons || 'none';
+      const enableVaneButtons = vaneControl === 'buttons' || vaneControl === 'simple';
+      let activeVanePositions: string[] = [];
+
+      if (enableVaneButtons) {
+        // Single Swing switch per AC: ON = Swing (oscillating), OFF = Auto (AC picks fixed
+        // position). The setter in vane-button.ts handles the OFF→Auto transition. Auto is
+        // never exposed as its own button — it would just be a "not Swing" duplicate.
+        activeVanePositions = ['swing'];
+        for (const positionKey of activeVanePositions) {
+          const positionName = VaneButton.POSITION_NAMES[positionKey] || positionKey;
+          const displayName = `${device.givenDisplayName} Vane ${positionName}`;
+          const accUuid = this.api.hap.uuid.generate(`${device.id}-vane-${positionKey}`);
+          expectedUuids.add(accUuid);
+
+          let accessory = this.accessories.find((a) => a.UUID === accUuid);
+          const isNew = !accessory;
+          if (!accessory) {
+            this.debugLog(`Adding Vane ${positionName} accessory: ${displayName}`);
+            accessory = new this.api.platformAccessory(displayName, accUuid, Categories.SWITCH);
+            this.accessories.push(accessory);
+          }
+          accessory.context.device = device;
+          accessory.context.kind = 'vane-button';
+          accessory.context.deviceId = device.id;
+          accessory.context.subtype = `vane-${positionKey}`;
+
+          const switchService =
+            accessory.getService(this.Service.Switch) || accessory.addService(this.Service.Switch, displayName);
+
+          const buttonInstance = new VaneButton(this, accessory, switchService, positionKey);
+          this.vaneButtonInstances.set(`${mainUuid}-vane-${positionKey}`, buttonInstance);
+
+          if (isNew) {
+            this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+          } else {
+            this.api.updatePlatformAccessories([accessory]);
+          }
+        }
       }
     }
+
+    // Remove any cached accessory that's no longer expected: devices that vanished,
+    // switches that were disabled in config, or legacy standalone accessories from
+    // pre-1.6.0 / child-service-era variants.
+    const accessoriesToRemove = this.accessories.filter((accessory) => {
+      if (!expectedUuids.has(accessory.UUID)) {
+        this.debugLog(`Removing unexpected/orphaned accessory: ${accessory.displayName}`);
+        return true;
+      }
+      return false;
+    });
+
+    if (accessoriesToRemove.length > 0) {
+      this.debugLog(`Removing ${accessoriesToRemove.length} cached accessory(ies)`);
+      this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, accessoriesToRemove);
+      // Also remove from our local array
+      for (const acc of accessoriesToRemove) {
+        const index = this.accessories.indexOf(acc);
+        if (index > -1) {
+          this.accessories.splice(index, 1);
+        }
+      }
+    }
+
+    // Log startup summary (the only info-level startup message)
+    const interval = Math.max(10, Math.min(3600, this.config.refreshInterval || 30));
+    this.log.info(`Initialized with ${devices.length} device(s), refresh interval ${interval}s`);
+    return devices.length;
   }
 
-  private startRefreshInterval() {
+  /**
+   * One self-rescheduling loop for both startup discovery and periodic refresh.
+   * Discovery used to run once, outside the loop: if that single fetch failed at
+   * boot (network not up yet, a MELCloud 401 burst, a token family that died while
+   * Homebridge was off) the plugin logged an error and never tried again, leaving
+   * handler-less cached accessories until the next restart. Now a failed discovery
+   * is just a failed cycle — same classification, backoff, auto re-login and
+   * circuit breaker as any refresh.
+   */
+  private startPolling() {
     const interval = Math.max(10, Math.min(3600, this.config.refreshInterval || 30)) * 1000;
     this.debugLog(`Refresh interval: ${interval / 1000}s`);
 
-    // Initial refresh to sync state
-    setImmediate(async () => {
-      try {
-        await this.refreshAllDevices();
-      } catch (error) {
-        this.log.error('Initial refresh failed:', error instanceof Error ? error.message : String(error));
-      }
-    });
-
     // Never back off below the configured interval, even when that is above the cap.
     const maxBackoff = Math.max(interval, MELCloudHomePlatform.API_REJECTION_MAX_BACKOFF_MS);
+    let discovered = false;
 
-    // Self-rescheduling refresh to prevent overlapping cycles
+    // Self-rescheduling to prevent overlapping cycles
     const scheduleNext = (delay = interval) => {
       this.refreshInterval = setTimeout(async () => {
-        this.debugLog('Refresh cycle starting...');
+        this.debugLog(discovered ? 'Refresh cycle starting...' : 'Discovery starting...');
         try {
+          if (!discovered) {
+            const devices = await this.getAPI().getAllDevices();
+            discovered = true;
+            const found = this.registerDevices(devices);
+            if (found === 0) {
+              return; // Nothing to poll
+            }
+            // Sync state right away rather than one interval from now, as before.
+            scheduleNext(0);
+            return;
+          }
           await this.refreshAllDevices();
           if (this.consecutiveAuthFailures > 0 || this.consecutiveApiRejections > 0) {
             this.log.info('Connection restored.');
@@ -515,13 +509,13 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
               return; // Stop scheduling further refreshes
             }
           } else {
-            this.log.error('Failed to refresh devices:', message);
+            this.log.error(discovered ? 'Failed to refresh devices:' : 'Failed to discover devices:', message);
           }
         }
         scheduleNext();
       }, delay);
     };
-    scheduleNext();
+    scheduleNext(0);
   }
 
   private async refreshAllDevices() {
@@ -657,5 +651,4 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
     this.updateFanButtonsForDevice(device);
     this.updateVaneButtonsForDevice(device);
   }
-
 }
