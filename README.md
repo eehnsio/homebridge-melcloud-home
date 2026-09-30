@@ -24,6 +24,7 @@ Thanks to [homebridge-melcloud-control](https://github.com/grzegorz914/homebridg
 - Power, temperature (0.5° steps) and mode (Heat, Cool, Auto)
 - Fan speed (Auto + 5 levels)
 - Automatic device discovery
+- Changes made in the MELCloud app or with the remote show up in HomeKit within one refresh interval
 - Temperature sensor per unit, for automations (optional)
 - Fan speed and swing as separate switches (optional)
 - Stays signed in when MELCloud drops the login (optional)
