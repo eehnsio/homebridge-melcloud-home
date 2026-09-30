@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.9.0...v1.9.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* sync target temperature changed in the MELCloud app to HomeKit ([4012046](https://github.com/eehnsio/homebridge-melcloud-home/commit/40120468c6d563369941685a3de8a293a63e97df)), closes [#25](https://github.com/eehnsio/homebridge-melcloud-home/issues/25)
+
+
+### Documentation
+
+* note that changes from the MELCloud app sync to HomeKit ([77bc319](https://github.com/eehnsio/homebridge-melcloud-home/commit/77bc319d6d74ace0dea398f862945881cef273db))
+
 ## [1.9.0](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.8.2...v1.9.0) (2026-09-26)
 
 
