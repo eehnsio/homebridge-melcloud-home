@@ -579,6 +579,53 @@ export class MELCloudAccessory {
     await this.setTemperature(midpoint);
   }
 
+  /**
+   * Adopt the device setpoint when it no longer matches what the thresholds imply, i.e. it was
+   * changed outside HomeKit (MELCloud app, IR remote). Without this the cached thresholds win
+   * forever and external changes never reach HomeKit (issue #25, regression since v1.1.5).
+   * HomeKit's own changes don't bounce: setTemperature() updates the cached setpoint optimistically.
+   */
+  private syncThresholdsToSetpoint(mode: string, setTemp: number) {
+    if (this.heatingThreshold === undefined || this.coolingThreshold === undefined) {
+      return;
+    }
+
+    let heating = this.heatingThreshold;
+    let cooling = this.coolingThreshold;
+    switch (mode) {
+      case 'Heat':
+        heating = setTemp;
+        break;
+      case 'Cool':
+      case 'Dry':
+        cooling = setTemp;
+        break;
+      case 'Automatic':
+      case 'Auto': {
+        // Keep the user's range width, recentre it on the device setpoint
+        const shift = setTemp - (heating + cooling) / 2;
+        heating += shift;
+        cooling += shift;
+        break;
+      }
+      default:
+        return; // Fan mode has no setpoint semantics
+    }
+
+    if (Math.abs(heating - this.heatingThreshold) < 0.1 && Math.abs(cooling - this.coolingThreshold) < 0.1) {
+      return;
+    }
+
+    this.platform.log.info(
+      `[${this.device.givenDisplayName}] Target changed outside HomeKit: ${setTemp}°C (${mode}) → ` +
+        `heating ${heating}°C, cooling ${cooling}°C`,
+    );
+    this.heatingThreshold = heating;
+    this.coolingThreshold = cooling;
+    this.accessory.context.heatingThreshold = heating;
+    this.accessory.context.coolingThreshold = cooling;
+  }
+
   private async setTemperature(temp: number) {
     // Don't send command if the temperature is already correct
     const settings = this.getSettings();
@@ -769,6 +816,9 @@ export class MELCloudAccessory {
     if (this.coolingThreshold === undefined) {
       this.coolingThreshold = validSetTemp + 2;
       this.accessory.context.coolingThreshold = this.coolingThreshold;
+    }
+    if (!Number.isNaN(setTemp)) {
+      this.syncThresholdsToSetpoint(settings.OperationMode, setTemp);
     }
 
     const coolingTemp = Math.max(
