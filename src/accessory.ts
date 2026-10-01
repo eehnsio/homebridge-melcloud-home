@@ -149,7 +149,7 @@ export class MELCloudAccessory {
     // Clean up old/deprecated services (vane control is now handled by separate VaneButton accessories)
     const servicesToRemove = [
       this.accessory.getService(this.platform.Service.Fan), // Old fan service
-      this.accessory.getService(this.platform.Service.Slat), // Old slat service
+      this.accessory.getService(this.platform.Service.Slats), // Old slat service
       this.accessory.getService('swing-control'), // Old swing switch
       this.accessory.getService('vane-control'), // Old vane slider
     ];
