@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type {
   API,
   Characteristic,
@@ -8,7 +9,6 @@ import type {
   Service,
 } from 'homebridge';
 import { Categories } from 'homebridge';
-import path from 'node:path';
 import { MELCloudAccessory } from './accessory';
 import { AUTH_AUDIT_LOG_FILE, AuthAuditLog, maskToken } from './auth-audit-log';
 import { ConfigManager } from './config-manager';
@@ -283,7 +283,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
       let mainAccessory = this.accessories.find((accessory) => accessory.UUID === mainUuid);
 
       if (mainAccessory) {
-        this.debugLog('Restoring existing accessory from cache: ' + device.givenDisplayName);
+        this.debugLog(`Restoring existing accessory from cache: ${device.givenDisplayName}`);
         mainAccessory.context.device = device;
         mainAccessory.context.kind = 'main';
         // MIGRATION: strip any leftover fan-/vane- child Switch services from the v1.6.x era
@@ -300,7 +300,7 @@ export class MELCloudHomePlatform implements DynamicPlatformPlugin {
         const accessoryInstance = new MELCloudAccessory(this, mainAccessory);
         this.accessoryInstances.set(mainUuid, accessoryInstance);
       } else {
-        this.debugLog('Adding new accessory: ' + device.givenDisplayName);
+        this.debugLog(`Adding new accessory: ${device.givenDisplayName}`);
         mainAccessory = new this.api.platformAccessory(device.givenDisplayName, mainUuid, Categories.AIR_CONDITIONER);
         mainAccessory.context.device = device;
         mainAccessory.context.kind = 'main';

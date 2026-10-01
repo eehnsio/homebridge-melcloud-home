@@ -86,15 +86,6 @@ export interface DeviceCommand {
   inStandbyMode?: boolean | null;
 }
 
-interface TokenResponse {
-  access_token: string;
-  expires_in: number;
-  id_token: string;
-  refresh_token: string;
-  scope: string;
-  token_type: string;
-}
-
 /**
  * The refresh token itself was rejected (the `/connect/token` call failed). Kept
  * distinct from an API 401/403, which makeRequest() has already answered with a
@@ -561,7 +552,7 @@ export class MELCloudAPI {
     const sharedCount = collect(shared);
     this.config.debugLog?.(
       `[MELCloud] Found ${ownedCount} owned unit(s) in ${owned?.length ?? 0} building(s), ` +
-      `${sharedCount} shared unit(s) in ${shared?.length ?? 0} guest building(s)`,
+        `${sharedCount} shared unit(s) in ${shared?.length ?? 0} guest building(s)`,
     );
 
     return devices;

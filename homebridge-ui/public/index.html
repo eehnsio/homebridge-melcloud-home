@@ -9,6 +9,7 @@
            Homebridge's dark theme. Inheriting the theme's own text colour and dimming
            it keeps help text legible in both light and dark without hardcoding either. */
         #app .text-muted {
+            /* biome-ignore lint/complexity/noImportantStyles: must beat Bootstrap's own !important on .text-muted */
             color: inherit !important;
             opacity: 0.75;
         }
@@ -239,7 +240,7 @@
             let timer;
             const timeout = new Promise((resolve) => {
                 timer = setTimeout(() => {
-                    console.warn('[UI] savePluginConfig() did not resolve within ' + timeoutMs + 'ms; continuing optimistically');
+                    console.warn(`[UI] savePluginConfig() did not resolve within ${timeoutMs}ms; continuing optimistically`);
                     resolve();
                 }, timeoutMs);
             });
@@ -262,13 +263,13 @@
             const stayCheckbox = document.getElementById('stay-signed-in');
             try {
                 const status = await window.homebridge.request('/credentials-status', {});
-                stayCheckbox.checked = !!(status && status.saved);
+                stayCheckbox.checked = !!status?.saved;
                 // Saved but undecryptable: the switch is on and nothing works. Say so
                 // here, since the only place it would otherwise surface is a warning in
                 // the log weeks later, when the token finally dies.
                 document
                     .getElementById('credentials-unreadable')
-                    .classList.toggle('d-none', !(status && status.saved && !status.readable));
+                    .classList.toggle('d-none', !(status?.saved && !status.readable));
             } catch (error) {
                 console.error('[UI] Could not read credential status:', error);
             }
@@ -327,11 +328,11 @@
                         viaTimeout
                     ]);
 
-                    if (response && response.__timeout) {
+                    if (response?.__timeout) {
                         throw new Error('The UI lost contact with the server while logging in. If the Homebridge log shows "Refresh token obtained", reload this settings page (or restart Homebridge) and the token should appear in Step 2 — otherwise try again.');
                     }
 
-                    if (response && response.success && response.refreshToken) {
+                    if (response?.success && response.refreshToken) {
                         // Auto-fill the token in Step 2
                         document.getElementById('token-input').value = response.refreshToken;
 
@@ -341,7 +342,7 @@
                         try {
                             if (document.getElementById('stay-signed-in').checked) {
                                 const saved = await window.homebridge.request('/save-credentials', { email, password });
-                                stayNote = saved && saved.success
+                                stayNote = saved?.success
                                     ? ' Credentials saved (encrypted) — the plugin can now sign in again by itself.'
                                     : ' Note: credentials could not be saved, automatic re-login is off.';
                             } else {
@@ -352,13 +353,13 @@
                             stayNote = ' Note: credentials could not be saved, automatic re-login is off.';
                         }
 
-                        resultDiv.innerHTML = '<div class="alert alert-success">✓ Login successful! Token obtained. See Step 2 below.' + stayNote + '</div>';
+                        resultDiv.innerHTML = `<div class="alert alert-success">✓ Login successful! Token obtained. See Step 2 below.${stayNote}</div>`;
                         // Clear password field for security
                         document.getElementById('password-input').value = '';
                         // Scroll to Step 2
                         document.getElementById('token-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
                     } else {
-                        throw new Error((response && response.error) || 'Login failed');
+                        throw new Error(response?.error || 'Login failed');
                     }
                 } catch (error) {
                     console.error('[UI] Direct login error:', error);

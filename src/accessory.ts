@@ -119,7 +119,6 @@ export class MELCloudAccessory {
         .onSet(this.setRotationSpeed.bind(this));
     }
 
-
     // Add separate TemperatureSensor service for HomeKit automations (if enabled in config)
     // HomeKit doesn't allow automations based on CurrentTemperature from HeaterCooler service,
     // but it does allow automations from dedicated TemperatureSensor services
@@ -194,9 +193,7 @@ export class MELCloudAccessory {
    */
   private guardRead<T>(read: () => T): T {
     if (!this.platform.isConnectionHealthy()) {
-      throw new this.platform.api.hap.HapStatusError(
-        this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE,
-      );
+      throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
     return read();
   }
@@ -298,9 +295,10 @@ export class MELCloudAccessory {
 
   private getActive(): CharacteristicValue {
     try {
-      const v = this.getSettings().Power === 'True'
-        ? this.platform.Characteristic.Active.ACTIVE
-        : this.platform.Characteristic.Active.INACTIVE;
+      const v =
+        this.getSettings().Power === 'True'
+          ? this.platform.Characteristic.Active.ACTIVE
+          : this.platform.Characteristic.Active.INACTIVE;
       this.platform.debugLog(`[${this.device.givenDisplayName}] onGet Active -> ${v}`);
       return v;
     } catch (e) {
@@ -390,7 +388,6 @@ export class MELCloudAccessory {
       return 1;
     }
   }
-
 
   /**
    * Compute current heater/cooler state from device settings
