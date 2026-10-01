@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.9.1...v1.9.2) (2026-10-01)
+
+
+### Miscellaneous
+
+* drop Node.js 20 (EOL) and support Node.js 22, 24 and 26 ([609e834](https://github.com/eehnsio/homebridge-melcloud-home/commit/609e834b804650b55709cf5a846b0711c7c0178d))
+
 ## [1.9.1](https://github.com/eehnsio/homebridge-melcloud-home/compare/v1.9.0...v1.9.1) (2026-09-30)
 
 
